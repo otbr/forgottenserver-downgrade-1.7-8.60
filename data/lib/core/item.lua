@@ -802,6 +802,13 @@ do
 			end
 		end
 
+		if not isVirtual then
+			local augmentDesc = item:getAugmentDescription()
+			if augmentDesc then
+				response[#response + 1] = fmt("\n%s", augmentDesc)
+			end
+		end
+
 		-- turn response into a single string
 		return concat(response, "")
 	end

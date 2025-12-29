@@ -15,10 +15,12 @@
 #include "teleport.h"
 #include "trashholder.h"
 #include "rewardchest.h"
+#include "events.h"
 
 extern Game g_game;
 extern Spells* g_spells;
 extern Vocations g_vocations;
+extern Events* g_events;
 
 Items Item::items;
 
@@ -133,6 +135,9 @@ Item* Item::CreateItem(PropStream& propStream)
 Item::Item(const uint16_t type, uint16_t count /*= 0*/) : id(type)
 {
 	const ItemType& it = items[id];
+	if (it.augment) {
+		setAugment(it.augment);
+	}
 
 	if (it.isFluidContainer() || it.isSplash()) {
 		setFluidType(count);
@@ -157,6 +162,9 @@ Item::Item(const Item& i) : Thing(), id(i.id), count(i.count), loadedFromMap(i.l
 {
 	if (i.attributes) {
 		attributes.reset(new ItemAttributes(*i.attributes));
+	}
+	if (i.getAugment()) {
+		setAugment(i.getAugment());
 	}
 }
 
@@ -1256,4 +1264,24 @@ const bool& ItemAttributes::CustomAttribute::get<bool>()
 void Item::stopDecaying()
 {
 	g_game.stopDecay(this);
+}
+
+void Item::setAugment(Augment* aug)
+{
+	Augment* oldAugment = getAugment();
+	if (oldAugment) {
+		g_events->eventItemOnRemoveAugment(this, oldAugment);
+		if (Player* player = const_cast<Player*>(getHoldingPlayer())) {
+			g_events->eventPlayerOnRemoveAugment(player, oldAugment);
+		}
+	}
+
+	getAttributes()->setAugment(aug);
+
+	if (aug) {
+		g_events->eventItemOnAugment(this, aug);
+		if (Player* player = const_cast<Player*>(getHoldingPlayer())) {
+			g_events->eventPlayerOnAugment(player, aug);
+		}
+	}
 }

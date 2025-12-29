@@ -18,6 +18,7 @@
 #include "script.h"
 #include "scriptmanager.h"
 #include "server.h"
+#include "augments.h"
 
 #include <fmt/format.h>
 #include <fmt/color.h>
@@ -141,12 +142,18 @@ void mainLoader(ServiceManager* services)
 		LOG_INFO("> No tables were optimized.");
 	}
 
+
+
 	// load vocations
 	LOG_INFO(">> Loading vocations");
 	if (!g_vocations.loadFromXml()) {
 		startupErrorMessage("Unable to load vocations!");
 		return;
 	}
+
+	// load augments
+	LOG_INFO(">> Loading augments");
+	Augments::loadAll();
 
 	// load item data
 	LOG_INFO(">> Loading items... ");

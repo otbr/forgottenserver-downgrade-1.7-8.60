@@ -17,7 +17,9 @@ class MagicField;
 class Mailbox;
 class Player;
 class Teleport;
+class Teleport;
 class TrashHolder;
+class Augment;
 
 enum ITEMPROPERTY
 {
@@ -285,7 +287,11 @@ private:
 	bool hasAttribute(itemAttrTypes type) const { return (type & attributeBits) != 0; }
 	void removeAttribute(itemAttrTypes type);
 
+	Augment* getAugment() const { return augment; }
+	void setAugment(Augment* aug) { augment = aug; }
+
 	static std::string emptyString;
+	static std::string pluralString;
 	static int64_t emptyInt;
 	static double emptyDouble;
 	static bool emptyBool;
@@ -367,6 +373,8 @@ private:
 
 	std::map<CombatType_t, Reflect> reflect;
 	std::map<CombatType_t, uint16_t> boostPercent;
+
+	Augment* augment = nullptr;
 
 	const Reflect& getReflect(CombatType_t combatType)
 	{
@@ -596,6 +604,17 @@ public:
 		}
 		return getAttributes()->removeCustomAttribute(key);
 	}
+
+	Augment* getAugment() const
+	{
+		if (!attributes) {
+			return nullptr;
+		}
+		return attributes->getAugment();
+	}
+
+	void setAugment(Augment* aug);
+
 
 	bool removeCustomAttribute(std::string_view key)
 	{

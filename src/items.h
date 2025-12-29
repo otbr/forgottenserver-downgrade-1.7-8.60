@@ -224,7 +224,9 @@ enum ItemParseAttributes_t
 	ITEM_PARSE_EXPERIENCERATE_LOW_LEVEL,
 	ITEM_PARSE_EXPERIENCERATE_BONUS,
 	ITEM_PARSE_EXPERIENCERATE_STAMINA,
+
 	ITEM_PARSE_REDUCESKILLLOSS,
+	ITEM_PARSE_AUGMENT,
 };
 
 struct Abilities
@@ -276,6 +278,7 @@ struct Abilities
 };
 
 class ConditionDamage;
+class Augment;
 
 class ItemType
 {
@@ -420,6 +423,8 @@ public:
 	bool stopTime = false;
 	bool showCount = true;
 	bool supply = false;
+
+	Augment* augment = nullptr;
 
 private:
 	static std::string pluralString;

@@ -19,6 +19,7 @@
 #include "rewardchest.h"
 #include "town.h"
 #include "vocation.h"
+#include "augments.h"
 
 #include <bitset>
 
@@ -30,7 +31,9 @@ class Npc;
 class Party;
 class SchedulerTask;
 class Bed;
+class Bed;
 class Guild;
+class Augment;
 
 enum skillsid_t
 {
@@ -144,6 +147,9 @@ public:
 	{
 		return (((lv - 6ULL) * lv + 17ULL) * lv - 12ULL) / 6ULL * 100ULL;
 	}
+
+	void updateAugments();
+	const std::vector<Augment*>& getActiveAugments() const { return activeAugments; }
 
 	uint16_t getStaminaMinutes() const { return staminaMinutes; }
 
@@ -1037,6 +1043,26 @@ public:
 
 	uint32_t totalReduceSkillLoss = 0;
 
+	// Augment system
+	bool addAugment(std::string_view augmentName);
+	bool addAugment(const std::shared_ptr<Augment>& augment);
+	bool removeAugment(std::string_view augmentName);
+	bool removeAugment(const std::shared_ptr<Augment>& augment);
+	bool isAugmented() const;
+	bool hasAugment(const std::string_view augmentName, const bool checkItems = false);
+	bool hasAugment(const std::shared_ptr<Augment>& augment, const bool checkItems = false);
+	const std::vector<std::shared_ptr<Augment>> getPlayerAugments() const;
+
+	// Augment visual effects functions
+	void absorbHealthFromDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat);
+	void restoreManaFromDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat);
+	void reviveSoulFromDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat);
+	void replenishStaminaFromDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat);
+	void resistDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat) const;
+	void reflectDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat, uint8_t areaEffect, uint8_t distanceEffect);
+	void deflectDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat, CombatOrigin paramOrigin, uint8_t areaEffect, uint8_t distanceEffect);
+	void ricochetDamage(CombatDamage& originalDamage, int32_t percent, int32_t flat, uint8_t areaEffect, uint8_t distanceEffect);
+
 private:
 	std::forward_list<Condition*> getMuteConditions() const;
 
@@ -1091,9 +1117,11 @@ private:
 	std::unordered_set<uint32_t> attackedSet;
 	std::unordered_set<uint32_t> VIPList;
 
-	std::map<uint8_t, OpenContainer> openContainers;
-	std::map<uint32_t, DepotLocker_ptr> depotLockerMap;
+	std::map<uint32_t, OpenContainer> openContainers;
 	std::map<uint32_t, DepotChest*> depotChests;
+	std::map<uint32_t, std::shared_ptr<DepotLocker>> depotLockerMap;
+
+	std::vector<Augment*> activeAugments;
 
 	std::unordered_map<uint16_t, uint8_t> outfits;
 	std::unordered_set<uint16_t> mounts;
@@ -1208,6 +1236,8 @@ private:
 	bool addAttackSkillPoint = false;
 	bool randomizeMount = false;
 	bool inventoryAbilities[CONST_SLOT_LAST + 1] = {};
+
+	std::vector<std::shared_ptr<Augment>> augments;
 
 	AccountManagerMode accountManager{ACCOUNT_MANAGER_NONE};
 	std::array<bool, 15> managerTalkState{};

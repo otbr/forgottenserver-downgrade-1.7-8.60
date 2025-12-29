@@ -4,6 +4,7 @@
 #include "otpch.h"
 
 #include "events.h"
+#include "augment.h"
 
 #include "item.h"
 #include "player.h"
@@ -118,6 +119,10 @@ bool Events::load()
 				info.playerOnRotateItem = event;
 			} else if (methodName == "onSpellCheck") {
 				info.playerOnSpellCheck = event;
+			} else if (methodName == "onAugment") {
+				info.playerOnAugment = event;
+			} else if (methodName == "onRemoveAugment") {
+				info.playerOnRemoveAugment = event;
 			} else {
 				LOG_WARN(fmt::format("[Warning - Events::load] Unknown player method: {}", methodName));
 			}
@@ -128,6 +133,14 @@ bool Events::load()
 				info.monsterOnSpawn = event;
 			} else {
 				LOG_WARN(fmt::format("[Warning - Events::load] Unknown monster method: {}", methodName));
+			}
+		} else if (className == "Item") {
+			if (methodName == "onAugment") {
+				info.itemOnAugment = event;
+			} else if (methodName == "onRemoveAugment") {
+				info.itemOnRemoveAugment = event;
+			} else {
+				LOG_WARN(fmt::format("[Warning - Events::load] Unknown item method: {}", methodName));
 			}
 		} else {
 			LOG_WARN(fmt::format("[Warning - Events::load] Unknown class: {}", className));
@@ -1266,4 +1279,110 @@ void Events::eventMonsterOnDropLoot(Monster* monster, Container* corpse)
 	Lua::setMetatable(L, -1, "Container");
 
 	return scriptInterface.callVoidFunction(2);
+}
+
+// Item
+void Events::eventItemOnAugment(Item* item, Augment* augment)
+{
+	// Item:onAugment(augment)
+	if (info.itemOnAugment == -1) {
+		return;
+	}
+
+	if (!scriptInterface.reserveScriptEnv()) {
+		LOG_ERROR("[Error - Events::eventItemOnAugment] Call stack overflow");
+		return;
+	}
+
+	ScriptEnvironment* env = scriptInterface.getScriptEnv();
+	env->setScriptId(info.itemOnAugment, &scriptInterface);
+
+	lua_State* L = scriptInterface.getLuaState();
+	scriptInterface.pushFunction(info.itemOnAugment);
+
+	Lua::pushUserdata<Item>(L, item);
+	Lua::setItemMetatable(L, -1, item);
+
+	Lua::pushString(L, augment->getName());
+
+	scriptInterface.callVoidFunction(2);
+}
+
+void Events::eventItemOnRemoveAugment(Item* item, Augment* augment)
+{
+	// Item:onRemoveAugment(augment)
+	if (info.itemOnRemoveAugment == -1) {
+		return;
+	}
+
+	if (!scriptInterface.reserveScriptEnv()) {
+		LOG_ERROR("[Error - Events::eventItemOnRemoveAugment] Call stack overflow");
+		return;
+	}
+
+	ScriptEnvironment* env = scriptInterface.getScriptEnv();
+	env->setScriptId(info.itemOnRemoveAugment, &scriptInterface);
+
+	lua_State* L = scriptInterface.getLuaState();
+	scriptInterface.pushFunction(info.itemOnRemoveAugment);
+
+	Lua::pushUserdata<Item>(L, item);
+	Lua::setItemMetatable(L, -1, item);
+
+	Lua::pushString(L, augment->getName());
+
+	scriptInterface.callVoidFunction(2);
+}
+
+// Player
+void Events::eventPlayerOnAugment(Player* player, Augment* augment)
+{
+	// Player:onAugment(augment)
+	if (info.playerOnAugment == -1) {
+		return;
+	}
+
+	if (!scriptInterface.reserveScriptEnv()) {
+		LOG_ERROR("[Error - Events::eventPlayerOnAugment] Call stack overflow");
+		return;
+	}
+
+	ScriptEnvironment* env = scriptInterface.getScriptEnv();
+	env->setScriptId(info.playerOnAugment, &scriptInterface);
+
+	lua_State* L = scriptInterface.getLuaState();
+	scriptInterface.pushFunction(info.playerOnAugment);
+
+	Lua::pushUserdata<Player>(L, player);
+	Lua::setMetatable(L, -1, "Player");
+
+	Lua::pushString(L, augment->getName());
+
+	scriptInterface.callVoidFunction(2);
+}
+
+void Events::eventPlayerOnRemoveAugment(Player* player, Augment* augment)
+{
+	// Player:onRemoveAugment(augment)
+	if (info.playerOnRemoveAugment == -1) {
+		return;
+	}
+
+	if (!scriptInterface.reserveScriptEnv()) {
+		LOG_ERROR("[Error - Events::eventPlayerOnRemoveAugment] Call stack overflow");
+		return;
+	}
+
+	ScriptEnvironment* env = scriptInterface.getScriptEnv();
+	env->setScriptId(info.playerOnRemoveAugment, &scriptInterface);
+
+	lua_State* L = scriptInterface.getLuaState();
+	scriptInterface.pushFunction(info.playerOnRemoveAugment);
+
+	Lua::pushUserdata<Player>(L, player);
+	Lua::setMetatable(L, -1, "Player");
+
+	Lua::pushString(L, augment->getName());
+
+	scriptInterface.callVoidFunction(2);
 }

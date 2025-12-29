@@ -67,9 +67,18 @@ class Events
 		int32_t playerOnRotateItem = -1;
 		int32_t playerOnSpellCheck = -1;
 
+
 		// Monster
 		int32_t monsterOnDropLoot = -1;
 		int32_t monsterOnSpawn = -1;
+
+		// Item
+		int32_t itemOnAugment = -1;
+		int32_t itemOnRemoveAugment = -1;
+
+		// Player
+		int32_t playerOnAugment = -1;
+		int32_t playerOnRemoveAugment = -1;
 	};
 
 public:
@@ -126,6 +135,14 @@ public:
 	// Monster
 	void eventMonsterOnDropLoot(Monster* monster, Container* corpse);
 	bool eventMonsterOnSpawn(Monster* monster, const Position& position, bool startup, bool artificial);
+
+	// Item
+	void eventItemOnAugment(Item* item, Augment* augment);
+	void eventItemOnRemoveAugment(Item* item, Augment* augment);
+
+	// Player
+	void eventPlayerOnAugment(Player* player, Augment* augment);
+	void eventPlayerOnRemoveAugment(Player* player, Augment* augment);
 
 	int32_t getScriptId(EventInfoId eventInfoId)
 	{

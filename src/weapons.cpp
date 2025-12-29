@@ -11,6 +11,7 @@
 #include "luavariant.h"
 #include "pugicast.h"
 #include "logger.h"
+#include "augment.h"
 #include <fmt/format.h>
 
 extern Game g_game;
@@ -561,6 +562,35 @@ bool WeaponMelee::getSkillType(const Player* player, const Item* item, skills_t&
 	return false;
 }
 
+int32_t WeaponMelee::getWeaponDamage(const Player* player, const Creature*, const Item* item,
+                                     bool maxDamage /*= false*/) const
+{
+	int32_t attackSkill = player->getWeaponSkill(item);
+	int32_t attackValue = std::max<int32_t>(0, item->getAttack());
+	float attackFactor = player->getAttackFactor();
+
+	int32_t maxValue =
+	    static_cast<int32_t>(Weapons::getMaxWeaponDamage(player->getLevel(), attackSkill, attackValue, attackFactor) *
+	                         player->getVocation()->meleeDamageMultiplier);
+
+	// TODO: Implement augment support for weapons
+	// if (item) {
+	// 	if (Augment* augment = item->getAugment()) {
+	// 		for (const auto& modifier : augment->getAttackModifiers()) {
+	// 			if (modifier->getType() == ATTACK_MODIFIER_CRITICAL || modifier->getType() == ATTACK_MODIFIER_PIERCING) {
+	// 				// Apply augment bonuses
+	// 			}
+	// 		}
+	// 	}
+	// }
+
+	if (maxDamage) {
+		return -maxValue;
+	}
+
+	return -normal_random(0, maxValue);
+}
+
 int32_t WeaponMelee::getElementDamage(const Player* player, const Creature*, const Item* item) const
 {
 	if (elementType == COMBAT_NONE) {
@@ -572,24 +602,20 @@ int32_t WeaponMelee::getElementDamage(const Player* player, const Creature*, con
 	float attackFactor = player->getAttackFactor();
 
 	int32_t maxValue = Weapons::getMaxWeaponDamage(player->getLevel(), attackSkill, attackValue, attackFactor);
-	return -normal_random(0, static_cast<int32_t>(maxValue * player->getVocation()->meleeDamageMultiplier));
-}
+	int32_t finalDamage = -normal_random(0, static_cast<int32_t>(maxValue * player->getVocation()->meleeDamageMultiplier));
 
-int32_t WeaponMelee::getWeaponDamage(const Player* player, const Creature*, const Item* item,
-                                     bool maxDamage /*= false*/) const
-{
-	int32_t attackSkill = player->getWeaponSkill(item);
-	int32_t attackValue = std::max<int32_t>(0, item->getAttack());
-	float attackFactor = player->getAttackFactor();
-
-	int32_t maxValue =
-	    static_cast<int32_t>(Weapons::getMaxWeaponDamage(player->getLevel(), attackSkill, attackValue, attackFactor) *
-	                         player->getVocation()->meleeDamageMultiplier);
-	if (maxDamage) {
-		return -maxValue;
-	}
-
-	return -normal_random(0, maxValue);
+	// TODO: Implement augment support for elemental weapons
+	// if (item) {
+	// 	if (Augment* augment = item->getAugment()) {
+	// 		for (const auto& modifier : augment->getAttackModifiers()) {
+	// 			if (modifier->getType() == ATTACK_MODIFIER_CRITICAL || modifier->getType() == ATTACK_MODIFIER_PIERCING) {
+	// 				// Apply augment bonuses
+	// 			}
+	// 		}
+	// 	}
+	// }
+    
+    return finalDamage;
 }
 
 WeaponDistance::WeaponDistance(LuaScriptInterface* interface) : Weapon(interface)

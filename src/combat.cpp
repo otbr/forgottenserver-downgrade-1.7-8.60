@@ -9,7 +9,10 @@
 #include "events.h"
 #include "game.h"
 #include "matrixarea.h"
+#include "matrixarea.h"
 #include "weapons.h"
+#include "augment.h"
+#include "player.h"
 
 extern Game g_game;
 extern Weapons* g_weapons;
@@ -796,6 +799,202 @@ void Combat::doCombat(Creature* caster, const Position& position) const
 
 void Combat::doTargetCombat(Creature* caster, Creature* target, CombatDamage& damage, const CombatParams& params)
 {
+	// Apply augment modifiers for ATTACK (caster)
+	if (caster && damage.primary.value < 0) {
+		Player* casterPlayer = caster->getPlayer();
+		if (casterPlayer) {
+			casterPlayer->updateAugments();
+			
+			const auto& activeAugments = casterPlayer->getActiveAugments();
+			
+			// Check if target matches race/creature type for modifiers
+			RaceType_t targetRace = RACE_NONE;
+			CreatureType_t targetCreatureType = CREATURETYPE_ATTACKABLE;
+			std::string targetName = "none";
+			
+			if (target) {
+				targetRace = target->getRace();
+				if (target->getPlayer()) {
+					targetCreatureType = CREATURETYPE_PLAYER;
+				} else if (target->getMonster()) {
+					targetCreatureType = CREATURETYPE_MONSTER;
+					targetName = target->getName();
+				}
+			}
+			
+			std::cout << "[AUGMENT DEBUG] ========================================" << std::endl;
+			std::cout << "[AUGMENT DEBUG] Caster: " << casterPlayer->getName() << std::endl;
+			std::cout << "[AUGMENT DEBUG] Target: " << (target ? target->getName() : "none") << std::endl;
+			std::cout << "[AUGMENT DEBUG] Target Race: " << static_cast<int>(targetRace) << " (0=none, 1=venom, 2=blood, 3=undead, 4=fire, 5=energy)" << std::endl;
+			std::cout << "[AUGMENT DEBUG] Damage BEFORE: " << damage.primary.value << " (type: " << static_cast<int>(damage.primary.type) << ")" << std::endl;
+			std::cout << "[AUGMENT DEBUG] Active Augments: " << activeAugments.size() << std::endl;
+			
+			for (Augment* aug : activeAugments) {
+				if (!aug) continue;
+				
+				std::cout << "[AUGMENT DEBUG] Processing augment: " << aug->getName() << std::endl;
+				
+				auto& attackModifiers = aug->getAttackModifiers();
+				std::cout << "[AUGMENT DEBUG]   Attack modifiers: " << attackModifiers.size() << std::endl;
+				
+				for (const auto& mod : attackModifiers) {
+					// Check damage type
+					if (!mod->appliesToDamage(damage.primary.type)) {
+						std::cout << "[AUGMENT DEBUG]   - Skipped (wrong damage type)" << std::endl;
+						continue;
+					}
+					
+					// Check origin type
+					if (!mod->appliesToOrigin(params.origin)) {
+						std::cout << "[AUGMENT DEBUG]   - Skipped (wrong origin)" << std::endl;
+						continue;
+					}
+					
+					// Check target (race, creature type, monster name)
+					if (!mod->appliesToTarget(targetCreatureType, targetRace, targetName)) {
+						std::cout << "[AUGMENT DEBUG]   - Skipped (wrong target/race)" << std::endl;
+						continue;
+					}
+					
+					int32_t percent = mod->isPercent() ? mod->getValue() : 0;
+					int32_t flat = mod->isFlatValue() ? mod->getValue() : 0;
+					uint8_t chance = mod->getChance();
+					
+					ModifierAttackType atkType = static_cast<ModifierAttackType>(mod->getType());
+					std::cout << "[AUGMENT DEBUG]   - Modifier type: " << static_cast<int>(atkType) << " (5=critical, 6=piercing, 7=conversion, 1=lifesteal, 2=manasteal, 4=soulsteal)" << std::endl;
+					std::cout << "[AUGMENT DEBUG]   - Value: " << percent << "%, Chance: " << static_cast<int>(chance) << "%" << std::endl;
+					
+					if (atkType == ATTACK_MODIFIER_CRITICAL) {
+						if (normal_random(1, 100) <= chance) {
+							int32_t critDamage = (std::abs(damage.primary.value) * percent) / 100;
+							damage.primary.value -= critDamage;
+							damage.critical = true;
+							std::cout << "[AUGMENT DEBUG]   ✓ CRITICAL HIT! Extra damage: " << critDamage << std::endl;
+						}
+					} else if (atkType == ATTACK_MODIFIER_CONVERSION) {
+						CombatType_t newType = mod->getConversionType();
+						if (newType != COMBAT_NONE && normal_random(1, 100) <= chance) {
+							int32_t convertAmount = (std::abs(damage.primary.value) * percent) / 100;
+							damage.primary.value += convertAmount;
+							damage.secondary.type = newType;
+							damage.secondary.value = -convertAmount;
+							std::cout << "[AUGMENT DEBUG]   ✓ CONVERSION! " << convertAmount << " to type " << static_cast<int>(newType) << std::endl;
+						}
+					} else if (atkType == ATTACK_MODIFIER_PIERCING) {
+						if (normal_random(1, 100) <= chance) {
+							// Mark damage as piercing (ignores armor/shield)
+							damage.piercing = true;
+							std::cout << "[AUGMENT DEBUG]   ✓ PIERCING! Ignores armor/shield" << std::endl;
+						}
+					} else if (atkType == ATTACK_MODIFIER_LIFESTEAL) {
+						if (normal_random(1, 100) <= chance) {
+							int32_t totalDamage = std::abs(damage.primary.value + damage.secondary.value);
+							int32_t healAmount = (totalDamage * percent) / 100 + flat;
+							if (healAmount > 0 && casterPlayer->getHealth() < casterPlayer->getMaxHealth()) {
+								casterPlayer->changeHealth(healAmount);
+								casterPlayer->sendMagicEffect(casterPlayer->getPosition(), CONST_ME_MAGIC_RED);
+								std::cout << "[AUGMENT DEBUG]   ✓ LIFESTEAL! Healed: " << healAmount << " HP" << std::endl;
+							}
+						}
+					} else if (atkType == ATTACK_MODIFIER_MANASTEAL) {
+						if (normal_random(1, 100) <= chance) {
+							int32_t totalDamage = std::abs(damage.primary.value + damage.secondary.value);
+							int32_t manaAmount = (totalDamage * percent) / 100 + flat;
+							if (manaAmount > 0 && casterPlayer->getMana() < casterPlayer->getMaxMana()) {
+								casterPlayer->changeMana(manaAmount);
+								casterPlayer->sendMagicEffect(casterPlayer->getPosition(), CONST_ME_MAGIC_BLUE);
+								std::cout << "[AUGMENT DEBUG]   ✓ MANASTEAL! Restored: " << manaAmount << " mana" << std::endl;
+							}
+						}
+					} else if (atkType == ATTACK_MODIFIER_STAMINASTEAL) {
+						if (normal_random(1, 100) <= chance) {
+							int32_t totalDamage = std::abs(damage.primary.value + damage.secondary.value);
+							int32_t staminaAmount = (totalDamage * percent) / 100 + flat;
+							if (staminaAmount > 0) {
+								// Add stamina (in minutes)
+								uint16_t currentStamina = casterPlayer->getStaminaMinutes();
+								uint16_t maxStamina = 2520; // 42 hours
+								uint16_t newStamina = std::min<uint16_t>(currentStamina + (staminaAmount / 60), maxStamina);
+								casterPlayer->setStaminaMinutes(newStamina);
+								casterPlayer->sendMagicEffect(casterPlayer->getPosition(), CONST_ME_ENERGYHIT);
+								std::cout << "[AUGMENT DEBUG]   ✓ STAMINASTEAL! Gained: " << (newStamina - currentStamina) << " minutes" << std::endl;
+							}
+						}
+					} else if (atkType == ATTACK_MODIFIER_SOULSTEAL) {
+						if (normal_random(1, 100) <= chance) {
+							int32_t totalDamage = std::abs(damage.primary.value + damage.secondary.value);
+							int32_t soulAmount = (totalDamage * percent) / 1000 + flat; // Divide by 1000 for balance
+							if (soulAmount > 0) {
+								casterPlayer->changeSoul(soulAmount);
+								casterPlayer->sendMagicEffect(casterPlayer->getPosition(), CONST_ME_MORTAREA);
+								std::cout << "[AUGMENT DEBUG]   ✓ SOULSTEAL! Gained: " << soulAmount << " soul" << std::endl;
+							}
+						}
+					}
+				}
+			}
+			
+			std::cout << "[AUGMENT DEBUG] Damage AFTER: " << damage.primary.value;
+			if (damage.secondary.type != COMBAT_NONE) {
+				std::cout << " + " << damage.secondary.value << " (type: " << static_cast<int>(damage.secondary.type) << ")";
+			}
+			std::cout << std::endl;
+			std::cout << "[AUGMENT DEBUG] Piercing: " << (damage.piercing ? "YES" : "NO") << std::endl;
+			std::cout << "[AUGMENT DEBUG] Critical: " << (damage.critical ? "YES" : "NO") << std::endl;
+			std::cout << "[AUGMENT DEBUG] ========================================" << std::endl;
+		}
+	}
+	
+	// Apply augment modifiers for defense (target)
+	if (target) {
+		Player* targetPlayer = target->getPlayer();
+		if (targetPlayer && damage.primary.value < 0) {
+			targetPlayer->updateAugments();
+			
+			const auto& activeAugments = targetPlayer->getActiveAugments();
+			
+			for (Augment* aug : activeAugments) {
+				if (!aug) continue;
+				
+				auto& defenseModifiers = aug->getDefenseModifiers();
+				
+				for (const auto& mod : defenseModifiers) {
+					if (!mod->appliesToDamage(damage.primary.type)) {
+						continue;
+					}
+					
+					int32_t percent = mod->isPercent() ? mod->getValue() : 0;
+					int32_t flat = mod->isFlatValue() ? mod->getValue() : 0;
+					
+					ModifierDefenseType defType = static_cast<ModifierDefenseType>(mod->getType());
+					
+					switch (defType) {
+						case DEFENSE_MODIFIER_ABSORB:
+							targetPlayer->absorbHealthFromDamage(caster, damage, percent, flat);
+							break;
+						case DEFENSE_MODIFIER_RESTORE:
+							targetPlayer->restoreManaFromDamage(caster, damage, percent, flat);
+							break;
+						case DEFENSE_MODIFIER_RESIST:
+							targetPlayer->resistDamage(caster, damage, percent, flat);
+							break;
+						case DEFENSE_MODIFIER_REFLECT:
+							targetPlayer->reflectDamage(caster, damage, percent, flat, CONST_ME_ENERGYHIT, CONST_ANI_NONE);
+							break;
+						case DEFENSE_MODIFIER_DEFLECT:
+							targetPlayer->deflectDamage(caster, damage, percent, flat, ORIGIN_DEFLECT, CONST_ME_ENERGYHIT, CONST_ANI_NONE);
+							break;
+						case DEFENSE_MODIFIER_RICOCHET:
+							targetPlayer->ricochetDamage(damage, percent, flat, CONST_ME_ENERGYHIT, CONST_ANI_NONE);
+							break;
+						default:
+							break;
+					}
+				}
+			}
+		}
+	}
+
 	if (caster && target && params.distanceEffect != CONST_ANI_NONE) {
 		addDistanceEffect(caster, caster->getPosition(), target->getPosition(), params.distanceEffect);
 	}

@@ -19,7 +19,9 @@
 #include "logger.h"
 #include <fmt/format.h>
 #include "tools.h"
+#include "tools.h"
 #include "weapons.h"
+#include "augment.h"
 
 extern Game g_game;
 extern Chat* g_chat;
@@ -421,6 +423,22 @@ void Player::updateInventoryWeight()
 		const Item* item = inventory[i];
 		if (item) {
 			inventoryWeight += item->getWeight();
+		}
+	}
+}
+
+void Player::updateAugments()
+{
+	activeAugments.clear();
+	for (int i = CONST_SLOT_FIRST; i <= CONST_SLOT_LAST; ++i) {
+		Item* item = inventory[i];
+		if (item) {
+			// Get augment from ItemType, not from Item
+			const ItemType& itemType = Item::items[item->getID()];
+			Augment* aug = itemType.augment;
+			if (aug) {
+				activeAugments.push_back(aug);
+			}
 		}
 	}
 }
@@ -5368,4 +5386,308 @@ bool Player::addOfflineTrainingTries(skills_t skill, uint64_t tries)
 	        ucwords(getSkillName(skill)), oldSkillValue, oldPercentToNextLevel, (oldSkillValue + 1), newSkillValue,
 	        newPercentToNextLevel, (newSkillValue + 1)));
 	return sendUpdate;
+}
+
+// Augment System Implementation
+bool Player::addAugment(const std::shared_ptr<Augment>& augment) {
+	if (std::ranges::find(augments, augment) == augments.end()) {
+		augments.push_back(augment);
+		return true;
+	}
+	return false;
+}
+
+bool Player::addAugment(const std::string_view augmentName) {
+	if (auto augment = Augments::GetAugment(augmentName)) {
+		augments.emplace_back(augment);
+		return true;
+	}
+	return false;
+}
+
+bool Player::removeAugment(const std::shared_ptr<Augment>& augment) {
+	if (const auto it = std::ranges::find(augments, augment); it != augments.end()) {
+		augments.erase(it);
+		return true;
+	}
+	return false;
+}
+
+bool Player::removeAugment(const std::string_view augmentName) {
+	for (auto it = augments.begin(); it != augments.end(); ++it) {
+		if ((*it)->getName() == augmentName) {
+			augments.erase(it);
+			return true;
+		}
+	}
+	return false;
+}
+
+bool Player::isAugmented() const {
+	return augments.size() > 0;
+}
+
+bool Player::hasAugment(const std::string_view augmentName, bool checkItems) {
+	for (const auto& augment : augments) {
+		if (augment->getName() == augmentName) {
+			return true;
+		}
+	}
+
+	if (checkItems) {
+		for (int32_t slot = CONST_SLOT_FIRST; slot <= CONST_SLOT_LAST; ++slot) {
+			if (const auto& item = inventory[slot]; item) {
+				// TODO: Implement item augment checking when items support augments
+			}
+		}
+	}
+	return false;
+}
+
+bool Player::hasAugment(const std::shared_ptr<Augment>& augment, bool checkItems) {
+	for (const auto& aug : augments) {
+		if (aug == augment) {
+			return true;
+		}
+	}
+
+	if (checkItems) {
+		for (int32_t slot = CONST_SLOT_FIRST; slot <= CONST_SLOT_LAST; ++slot) {
+			if (const auto& item = inventory[slot]; item) {
+				// TODO: Implement item augment checking when items support augments
+			}
+		}
+	}
+	return false;
+}
+
+const std::vector<std::shared_ptr<Augment>> Player::getPlayerAugments() const {
+	return augments;
+}
+
+// Augment Visual Effects Implementation
+void Player::absorbHealthFromDamage(std::optional<Creature*> /*attacker*/, CombatDamage& originalDamage, int32_t percent, int32_t flat) {
+	std::cout << "[DEBUG] absorbHealthFromDamage called! percent=" << percent << " flat=" << flat << " originalDamage=" << originalDamage.primary.value << std::endl;
+	
+	int32_t absorbDamage = 0;
+	const int32_t originalDamageValue = std::abs(originalDamage.primary.value);
+	
+	if (percent) {
+		absorbDamage += originalDamageValue * percent / 100;
+	}
+	if (flat) {
+		absorbDamage += flat;
+	}
+
+	std::cout << "[DEBUG] Calculated absorbDamage=" << absorbDamage << std::endl;
+
+	if (absorbDamage != 0) {
+		absorbDamage = std::min<int32_t>(absorbDamage, originalDamageValue);
+		originalDamage.primary.value += absorbDamage;
+
+		std::cout << "[DEBUG] Applying absorb! Healing " << absorbDamage << " HP with RED effect" << std::endl;
+
+		// Create healing damage with RED visual effect
+		CombatDamage absorb{};
+		absorb.primary.type = COMBAT_HEALING;
+		absorb.primary.value = absorbDamage;
+		absorb.origin = ORIGIN_ABSORB;
+
+		// Send red magic effect (CONST_ME_MAGIC_RED)
+		g_game.addMagicEffect(getPosition(), CONST_ME_MAGIC_RED);
+		g_game.combatChangeHealth(nullptr, this, absorb);
+		
+		std::cout << "[DEBUG] Absorb effect applied successfully!" << std::endl;
+	}
+}
+
+void Player::restoreManaFromDamage(std::optional<Creature*> /*attacker*/, CombatDamage& originalDamage, int32_t percent, int32_t flat) {
+	int32_t restoreDamage = 0;
+	const int32_t originalDamageValue = std::abs(originalDamage.primary.value);
+	
+	if (percent) {
+		restoreDamage += originalDamageValue * percent / 100;
+	}
+	if (flat) {
+		restoreDamage += flat;
+	}
+
+	if (restoreDamage != 0) {
+		restoreDamage = std::min<int32_t>(restoreDamage, originalDamageValue);
+		originalDamage.primary.value += restoreDamage;
+
+		// Restore mana with PURPLE energy effect (CONST_ME_ENERGYHIT)
+		changeMana(restoreDamage);
+		g_game.addMagicEffect(getPosition(), CONST_ME_ENERGYHIT);
+		
+		sendTextMessage(MESSAGE_HEALED, "You restored " + std::to_string(restoreDamage) + " mana.");
+	}
+}
+
+void Player::reviveSoulFromDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat) {
+	int32_t reviveDamage = 0;
+	const int32_t originalDamageValue = std::abs(originalDamage.primary.value);
+	
+	if (percent) {
+		reviveDamage += originalDamageValue * percent / 100;
+	}
+	if (flat) {
+		reviveDamage += flat;
+	}
+
+	if (reviveDamage != 0) {
+		reviveDamage = std::min<int32_t>(reviveDamage, originalDamageValue);
+		originalDamage.primary.value += reviveDamage;
+
+		auto message = (attacker.has_value()) ?
+			"You gained " + std::to_string(reviveDamage) + " soul from " + attacker.value()->getName() + "'s attack." :
+			"You gained " + std::to_string(reviveDamage) + " soul from revival.";
+		
+		sendTextMessage(MESSAGE_HEALED, message);
+		changeSoul(reviveDamage);
+	}
+}
+
+void Player::replenishStaminaFromDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat) {
+	int32_t replenishDamage = 0;
+	const int32_t originalDamageValue = std::abs(originalDamage.primary.value);
+	
+	if (percent) {
+		replenishDamage += originalDamageValue * percent / 100;
+	}
+	if (flat) {
+		replenishDamage += flat;
+	}
+
+	if (replenishDamage != 0) {
+		replenishDamage = std::min<int32_t>(replenishDamage, originalDamageValue);
+		originalDamage.primary.value += replenishDamage;
+
+		auto message = (attacker.has_value()) ?
+			"You gained " + std::to_string(replenishDamage) + " stamina from " + attacker.value()->getName() + "'s attack." :
+			"You gained " + std::to_string(replenishDamage) + " stamina from replenishment.";
+
+		sendTextMessage(MESSAGE_HEALED, message);
+		setStaminaMinutes(staminaMinutes + static_cast<uint16_t>(replenishDamage));
+	}
+}
+
+void Player::resistDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat) const {
+	int32_t resistDamage = 0;
+	const int32_t originalDamageValue = std::abs(originalDamage.primary.value);
+	
+	if (percent) {
+		resistDamage += originalDamageValue * percent / 100;
+	}
+	if (flat) {
+		resistDamage += flat;
+	}
+
+	if (resistDamage != 0) {
+		resistDamage = std::min<int32_t>(resistDamage, originalDamageValue);
+		originalDamage.primary.value += resistDamage;
+		
+		auto message = (attacker.has_value()) ?
+			"You resisted " + std::to_string(resistDamage) + " damage from " + attacker.value()->getName() + "'s attack." :
+			"You resisted " + std::to_string(resistDamage) + " damage.";
+
+		sendTextMessage(MESSAGE_HEALED, message);
+	}
+}
+
+void Player::reflectDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat, uint8_t areaEffect, uint8_t /*distanceEffect*/) {
+	std::cout << "[DEBUG] reflectDamage called" << std::endl;
+	
+	if (!attacker.has_value() || !attacker.value()) {
+		std::cout << "[DEBUG] No attacker to reflect to, skipping" << std::endl;
+		// Can't reflect without an attacker - just reduce damage instead
+		int32_t reflectDamage = 0;
+		const int32_t originalDamageValue = std::abs(originalDamage.primary.value);
+		
+		if (percent) {
+			reflectDamage += originalDamageValue * percent / 100;
+		}
+		if (flat) {
+			reflectDamage += flat;
+		}
+		
+		if (reflectDamage != 0) {
+			reflectDamage = std::min<int32_t>(reflectDamage, originalDamageValue);
+			originalDamage.primary.value += reflectDamage;
+			sendTextMessage(MESSAGE_EVENT_DEFAULT, "You absorbed " + std::to_string(reflectDamage) + " damage (no target to reflect to).");
+		}
+		return;
+	}
+
+	int32_t reflectDamage = 0;
+	const int32_t originalDamageValue = std::abs(originalDamage.primary.value);
+	
+	if (percent) {
+		reflectDamage += originalDamageValue * percent / 100;
+	}
+	if (flat) {
+		reflectDamage += flat;
+	}
+
+	if (reflectDamage != 0) {
+		Creature* target = attacker.value();
+		reflectDamage = std::min<int32_t>(reflectDamage, originalDamageValue);
+		originalDamage.primary.value += reflectDamage;
+
+		std::cout << "[DEBUG] Reflecting " << reflectDamage << " damage to " << target->getName() << std::endl;
+
+		CombatDamage reflect{};
+		reflect.primary.type = originalDamage.primary.type;
+		reflect.primary.value = -reflectDamage;
+		reflect.origin = ORIGIN_REFLECT;
+
+		// Use the damage type's visual effect
+		g_game.addMagicEffect(target->getPosition(), areaEffect);
+		g_game.combatChangeHealth(this, target, reflect);
+
+		sendTextMessage(MESSAGE_DAMAGE_DEALT,
+			"You reflected " + std::to_string(reflectDamage) + " damage from " + target->getName() + "'s attack back at them.");
+	}
+}
+
+void Player::deflectDamage(std::optional<Creature*> /*attacker*/, CombatDamage& originalDamage, int32_t percent, int32_t flat, CombatOrigin /*paramOrigin*/, uint8_t /*areaEffect*/, uint8_t /*distanceEffect*/) {
+	int32_t deflectDamage = 0;
+	const int32_t originalDamageValue = std::abs(originalDamage.primary.value);
+
+	if (percent) {
+		deflectDamage += originalDamageValue * percent / 100;
+	}
+	if (flat) {
+		deflectDamage += flat;
+	}
+	
+	if (deflectDamage > 0) {
+		deflectDamage = std::min(deflectDamage, originalDamageValue);
+		originalDamage.primary.value += deflectDamage;
+
+		// Deflect to nearby enemies - simplified version
+		sendTextMessage(MESSAGE_EVENT_DEFAULT,
+			"You deflected " + std::to_string(deflectDamage) + " total damage.");
+	}
+}
+
+void Player::ricochetDamage(CombatDamage& originalDamage, int32_t percent, int32_t flat, uint8_t /*areaEffect*/, uint8_t /*distanceEffect*/) {
+	int32_t ricochetDamage = 0;
+	const int32_t originalDamageValue = std::abs(originalDamage.primary.value);
+
+	if (percent) {
+		ricochetDamage += originalDamageValue * percent / 100;
+	}
+	if (flat) {
+		ricochetDamage += flat;
+	}
+
+	if (ricochetDamage != 0) {
+		ricochetDamage = std::min(ricochetDamage, originalDamageValue);
+		originalDamage.primary.value += ricochetDamage;
+
+		// Ricochet - simplified version
+		sendTextMessage(MESSAGE_EVENT_ADVANCE,
+			"An attack on you ricocheted " + std::to_string(ricochetDamage) + " damage.");
+	}
 }

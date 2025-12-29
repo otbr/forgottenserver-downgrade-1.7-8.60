@@ -3307,11 +3307,12 @@
 	<item id="2392" article="a" name="Fire Sword">
 		<attribute key="description" value="The blade is a magic flame." />
 		<attribute key="weight" value="2300" />
-		<attribute key="defense" value="2500" />
-		<attribute key="attack" value="50000" />
+		<attribute key="defense" value="20" />
+		<attribute key="attack" value="24" />
 		<attribute key="elementFire" value="11" />
 		<attribute key="weaponType" value="sword" />
 		<attribute key="extradef" value="1" />
+		<attribute key="augment" value="Fire Strike" />
 	</item>
 	<item id="2393" article="a" name="giant sword">
 		<attribute key="description" value="This sword has been forged by ancient giants." />
@@ -3342,6 +3343,7 @@
 		<attribute key="weaponType" value="sword" />
 		<attribute key="elementIce" value="18" />
 		<attribute key="charges" value="1" />
+		<attribute key="augment" value="Ice Strike" />
 	</item>
 	<item id="2397" article="a" name="longsword">
 		<attribute key="weight" value="4200" />
@@ -3363,15 +3365,16 @@
 		<attribute key="hitChance" value="100" />
 		<attribute key="range" value="4" />
 	</item>
-	<item id="2400" article="a" name="magic sword">
+	<item id="2400" article="a" name="magic sword" augment="Fire Master">
 		<attribute key="description" value="It's the Sword of Valor." />
 		<attribute key="weight" value="4200" />
 		<attribute key="defense" value="35" />
 		<attribute key="attack" value="48" />
 		<attribute key="weaponType" value="sword" />
 		<attribute key="extradef" value="3" />
+		<attribute key="augment" value="Elemental Master" />
 	</item>
-	<item id="2401" article="a" name="staff">
+	<item id="2401" article="a" name="staff" augment="Light's Embrace">
 		<attribute key="weight" value="3800" />
 		<attribute key="defense" value="25" />
 		<attribute key="attack" value="10" />
@@ -3619,10 +3622,12 @@
 	<item id="2436" article="a" name="Skull Staff">
 		<attribute key="description" value="The staff longs for death." />
 		<attribute key="weight" value="1700" />
-		<attribute key="defense" value="2500" />
-		<attribute key="attack" value="50000" />
+		<attribute key="defense" value="12" />
+		<attribute key="attack" value="36" />
+		<attribute key="elementDeath" value="8" />
 		<attribute key="weaponType" value="club" />
 		<attribute key="extradef" value="1" />
+		<attribute key="augment" value="Death Strike" />
 	</item>
 	<item id="2437" article="a" name="light mace">
 		<attribute key="weight" value="4100" />

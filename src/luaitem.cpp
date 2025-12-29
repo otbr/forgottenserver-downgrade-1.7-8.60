@@ -6,6 +6,7 @@
 #include "game.h"
 #include "item.h"
 #include "luascript.h"
+#include "augments.h"
 
 extern Game g_game;
 
@@ -808,6 +809,61 @@ int luaItemGetBoostPercent(lua_State* L)
 	}
 	return 1;
 }
+
+int luaItemSetAugment(lua_State* L)
+{
+	// item:setAugment(name)
+	Item* item = getUserdata<Item>(L, 1);
+	if (!item) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	std::string name = getString(L, 2);
+	auto augment = Augments::GetAugment(name);
+	if (!augment && !name.empty()) {
+		pushBoolean(L, false); // Augment not found
+		return 1;
+	}
+	item->setAugment(augment.get());
+	
+	pushBoolean(L, true);
+	return 1;
+}
+
+int luaItemGetAugment(lua_State* L)
+{
+	// item:getAugment()
+	const Item* item = getUserdata<const Item>(L, 1);
+	if (item) {
+		Augment* augment = item->getAugment();
+		if (augment) {
+			pushString(L, augment->getName());
+		} else {
+			lua_pushnil(L);
+		}
+	} else {
+		lua_pushnil(L);
+	}
+	return 1;
+}
+
+int luaItemGetAugmentDescription(lua_State* L)
+{
+	// item:getAugmentDescription()
+	const Item* item = getUserdata<const Item>(L, 1);
+	if (item) {
+		Augment* augment = item->getAugment();
+		if (augment) {
+			pushString(L, augment->getDescription());
+		} else {
+			lua_pushnil(L);
+		}
+	} else {
+		lua_pushnil(L);
+	}
+	return 1;
+}
 } // namespace
 
 void LuaScriptInterface::registerItem()
@@ -830,6 +886,9 @@ void LuaScriptInterface::registerItem()
 	registerMethod("Item", "getUniqueId", luaItemGetUniqueId);
 	registerMethod("Item", "getActionId", luaItemGetActionId);
 	registerMethod("Item", "setActionId", luaItemSetActionId);
+	registerMethod("Item", "setAugment", luaItemSetAugment);
+	registerMethod("Item", "getAugment", luaItemGetAugment);
+	registerMethod("Item", "getAugmentDescription", luaItemGetAugmentDescription);
 
 	registerMethod("Item", "getCount", luaItemGetCount);
 	registerMethod("Item", "getCharges", luaItemGetCharges);
@@ -868,4 +927,7 @@ void LuaScriptInterface::registerItem()
 
 	registerMethod("Item", "setBoostPercent", luaItemSetBoostPercent);
 	registerMethod("Item", "getBoostPercent", luaItemGetBoostPercent);
+
+	registerMethod("Item", "setAugment", luaItemSetAugment);
+	registerMethod("Item", "getAugment", luaItemGetAugment);
 }

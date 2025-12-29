@@ -12,6 +12,7 @@
 #include "weapons.h"
 #include "logger.h"
 #include <fmt/format.h>
+#include "augments.h"
 
 extern MoveEvents* g_moveEvents;
 extern Weapons* g_weapons;
@@ -213,7 +214,9 @@ const std::unordered_map<std::string, ItemParseAttributes_t> ItemParseAttributes
     {"experienceratelowlevel", ITEM_PARSE_EXPERIENCERATE_LOW_LEVEL},
     {"experienceratebonus", ITEM_PARSE_EXPERIENCERATE_BONUS},
     {"experienceratestamina", ITEM_PARSE_EXPERIENCERATE_STAMINA},
+    {"experienceratestamina", ITEM_PARSE_EXPERIENCERATE_STAMINA},
     {"reduceskillloss", ITEM_PARSE_REDUCESKILLLOSS},
+    {"augment", ITEM_PARSE_AUGMENT},
 };
 
 const std::unordered_map<std::string, ItemTypes_t> ItemTypesMap = {{"key", ITEM_TYPE_KEY},
@@ -656,6 +659,18 @@ void Items::parseItemNode(const pugi::xml_node& itemNode, uint16_t id)
 		it.pluralName = pluralAttribute.as_string();
 	}
 
+	// Parse augment attribute directly from item tag
+	pugi::xml_attribute augmentAttribute = itemNode.attribute("augment");
+	if (augmentAttribute) {
+		std::string augmentName = augmentAttribute.as_string();
+		auto augment = Augments::GetAugment(augmentName);
+		if (augment) {
+			it.augment = augment.get();
+		} else {
+			LOG_WARN(fmt::format("[Warning - Items::parseItemNode] Unknown augment '{}' for item: {}", augmentName, it.name));
+		}
+	}
+
 	Abilities& abilities = it.getAbilities();
 
 	for (auto attributeNode : itemNode.children()) {
@@ -798,6 +813,17 @@ void Items::parseItemNode(const pugi::xml_node& itemNode, uint16_t id)
 						it.floorChange |= it2->second;
 					} else {
 						LOG_WARN(fmt::format("[Warning - Items::parseItemNode] Unknown floorChange: {}", valueAttribute.as_string()));
+					}
+					break;
+				}
+
+				case ITEM_PARSE_AUGMENT: {
+					std::string augmentName = valueAttribute.as_string();
+					auto augment = Augments::GetAugment(augmentName);
+					if (augment) {
+						it.augment = augment.get();
+					} else {
+						LOG_WARN(fmt::format("[Warning - Items::parseItemNode] Unknown augment '{}' for item: {}", augmentName, it.name));
 					}
 					break;
 				}
@@ -1907,15 +1933,18 @@ void Items::parseItemNode(const pugi::xml_node& itemNode, uint16_t id)
 				}
 
 				case ITEM_PARSE_REDUCESKILLLOSS: {
-					it.reduceSkillLoss = pugi::cast<int32_t>(valueAttribute.value());
-					abilities.reduceSkillLoss = pugi::cast<int32_t>(valueAttribute.value());
+					it.abilities->reduceSkillLoss = pugi::cast<uint32_t>(valueAttribute.value());
 					break;
 				}
+
+
 
 				case ITEM_PARSE_STACKSIZE: {
 					it.stackSize = pugi::cast<uint8_t>(valueAttribute.value());
 					break;
 				}
+
+
 
 				default: {
 					// It should not ever get to here, only if you add a new key to the map and don't configure a case

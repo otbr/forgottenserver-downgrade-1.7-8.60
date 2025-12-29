@@ -25,6 +25,7 @@
 #include "spells.h"
 #include "talkaction.h"
 #include "weapons.h"
+#include "augments.h"
 #include "logger.h"
 #include <fmt/format.h>
 
@@ -3963,6 +3964,12 @@ bool Game::combatBlockHit(CombatDamage& damage, Creature* attacker, Creature* ta
 
 	if (target->getPlayer() && target->isInGhostMode()) {
 		return true;
+	}
+
+	// Piercing damage ignores armor and shield
+	if (damage.piercing) {
+		checkDefense = false;
+		checkArmor = false;
 	}
 
 	static const auto sendBlockEffect = [this](BlockType_t blockType, CombatType_t combatType,

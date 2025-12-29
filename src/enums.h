@@ -130,6 +130,12 @@ enum CreatureType_t : uint8_t
 	CREATURETYPE_NPC = 2,
 	CREATURETYPE_SUMMON_OWN = 3,
 	CREATURETYPE_SUMMON_OTHERS = 4,
+	CREATURETYPE_SUMMON_ALL = 5,
+	CREATURETYPE_SUMMON_GUILD = 6,
+	CREATURETYPE_SUMMON_HOSTILE = 7,
+	CREATURETYPE_SUMMON_PARTY = 8,
+	CREATURETYPE_BOSS = 9,
+	CREATURETYPE_ATTACKABLE = 10,
 };
 
 enum OperatingSystem_t : uint8_t
@@ -654,6 +660,13 @@ enum CombatOrigin
 	ORIGIN_RANGED,
 	ORIGIN_WAND,
 	ORIGIN_REFLECT,
+	ORIGIN_ABSORB,
+	ORIGIN_RESTORE,
+	ORIGIN_DEFLECT,
+	ORIGIN_RICOCHET,
+	ORIGIN_PIERCING,
+	ORIGIN_AUGMENT,
+	ORIGIN_IMBUEMENT,
 };
 
 struct CombatDamage
@@ -668,6 +681,7 @@ struct CombatDamage
 	BlockType_t blockType = BLOCK_NONE;
 	bool critical = false;
 	bool leeched = false;
+	bool piercing = false;
 };
 
 using ShopInfoList = std::list<ShopInfo>;

@@ -138,3 +138,11 @@ function Player:onStepTile(fromPosition, toPosition)
     end
     return true
 end
+
+function Player:onAugment(augmentName)
+	if hasEvent.onAugment then Event.onAugment(self, augmentName) end
+end
+
+function Player:onRemoveAugment(augmentName)
+	if hasEvent.onRemoveAugment then Event.onRemoveAugment(self, augmentName) end
+end
