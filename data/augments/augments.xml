@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<augments>
+	<!-- EXEMPLO 1: Augment de ABSORB (Defesa) - Efeito Vermelho -->
+	<augment name="Fire Shield" description="Absorbs fire damage and converts it to health with red visual effect">
+		<modifier mod="absorb" value="50" factor="percent" chance="100" damage="fire" origin="all" />
+	</augment>
+
+	<!-- EXEMPLO 2: Augment de RESTORE (Defesa) - Efeito Roxo de Energia -->
+	<augment name="Mana Barrier" description="Restores mana from incoming damage with purple energy effect">
+		<modifier mod="restore" value="30" factor="percent" chance="100" damage="all" origin="all" />
+	</augment>
+
+	<!-- EXEMPLO 3: Augment de REFLECT (Defesa) - Usa efeito do tipo de dano -->
+	<augment name="Fire Reflection" description="Reflects fire damage back to attacker with fire visual effect">
+		<modifier mod="reflect" value="40" factor="percent" chance="100" damage="fire" origin="all" />
+	</augment>
+
+	<!-- EXEMPLO 4: Augment de DEFLECT (Defesa) - Usa efeito do tipo de dano -->
+	<augment name="Ice Deflection" description="Deflects ice damage to nearby enemies with ice visual effect">
+		<modifier mod="deflect" value="35" factor="percent" chance="100" damage="ice" origin="all" />
+	</augment>
+
+	<!-- EXEMPLO 5: Augment de RICOCHET (Defesa) - Usa efeito do tipo de dano -->
+	<augment name="Energy Ricochet" description="Ricochets energy damage to random enemy with energy visual effect">
+		<modifier mod="ricochet" value="45" factor="percent" chance="100" damage="energy" origin="all" />
+	</augment>
+
+	<!-- EXEMPLO 6: Augment de CRITICAL (Ataque) -->
+	<augment name="Fire Critical" description="Increases critical hit chance with fire damage">
+		<modifier mod="critical" value="15" factor="percent" chance="100" damage="fire" origin="spell" />
+	</augment>
+
+	<!-- EXEMPLO 7: Augment de LIFESTEAL (Ataque) -->
+	<augment name="Vampiric Strike" description="Steals life from physical attacks">
+		<modifier mod="lifesteal" value="10" factor="percent" chance="100" damage="physical" origin="melee" />
+	</augment>
+
+	<!-- EXEMPLO 8: Augment de CONVERSION (Ataque) - Converte tipo de dano -->
+	<augment name="Fire Converter" description="Converts physical damage to fire damage">
+		<modifier mod="conversion" value="100" factor="percent" chance="100" damage="physical" toDamage="fire" origin="all" />
+	</augment>
+
+	<!-- EXEMPLO 9: Augment de RESIST (Defesa) - Reduz dano -->
+	<augment name="Death Resistance" description="Reduces death damage taken">
+		<modifier mod="resist" value="25" factor="percent" chance="100" damage="death" origin="all" />
+	</augment>
+
+	<!-- EXEMPLO 10: Augment Múltiplos Modificadores -->
+	<augment name="Elemental Master" description="Multiple elemental effects">
+		<modifier mod="absorb" value="20" factor="percent" chance="100" damage="fire" origin="all" />
+		<modifier mod="reflect" value="30" factor="percent" chance="100" damage="ice" origin="all" />
+		<modifier mod="critical" value="25" factor="percent" chance="100" damage="all" origin="all" />
+		<modifier mod="conversion" value="50" factor="percent" chance="100" damage="physical" toDamage="fire" origin="melee" />
+	</augment>
+
+	<!-- EXEMPLO 11: Augment com Flat Value -->
+	<augment name="Flat Fire Shield" description="Absorbs flat amount of fire damage">
+		<modifier mod="absorb" value="100" factor="flat" chance="100" damage="fire" origin="all" />
+	</augment>
+
+	<!-- EXEMPLO 12: Augment com Chance -->
+	<augment name="Lucky Reflect" description="50% chance to reflect damage">
+		<modifier mod="reflect" value="80" factor="percent" chance="50" damage="all" origin="all" />
+	</augment>
+
+	<!-- EXEMPLO 13: Augment de REFORM (Defesa) - Converte tipo de dano recebido -->
+	<augment name="Death to Holy" description="Converts death damage to holy damage">
+		<modifier mod="reform" value="100" factor="percent" chance="100" damage="death" toDamage="holy" origin="all" />
+	</augment>
+
+	<!-- EXEMPLO 14: Augment de PIERCING (Ataque) - Ignora defesas -->
+	<augment name="Armor Piercer" description="Ignores enemy defenses">
+		<modifier mod="piercing" value="30" factor="percent" chance="100" damage="physical" origin="melee" />
+	</augment>
+
+	<!-- User Custom Augments -->
+	<augment name="Fire Master" description="Master of fire damage with critical hits and absorption">
+		<modifier mod="absorb" value="15" factor="percent" chance="100" damage="fire" origin="all" />
+		<modifier mod="critical" value="20" factor="percent" chance="100" damage="fire" origin="all" />
+		<modifier mod="conversion" value="50" factor="percent" chance="100" damage="physical" toDamage="fire" origin="melee" />
+	</augment>
+
+	<augment name="Fire Strike" description="Enhances fire damage with critical hits">
+		<modifier mod="critical" value="15" factor="percent" chance="100" damage="fire" origin="all" />
+		<modifier mod="conversion" value="30" factor="percent" chance="100" damage="physical" toDamage="fire" origin="melee" />
+	</augment>
+
+	<augment name="Ice Strike" description="Enhances ice damage with critical hits">
+		<modifier mod="critical" value="15" factor="percent" chance="100" damage="ice" origin="all" />
+		<modifier mod="conversion" value="30" factor="percent" chance="100" damage="physical" toDamage="ice" origin="melee" />
+	</augment>
+
+	<augment name="Death Strike" description="Enhances death damage with critical hits">
+		<modifier mod="critical" value="15" factor="percent" chance="100" damage="death" origin="all" />
+		<modifier mod="conversion" value="30" factor="percent" chance="100" damage="physical" toDamage="death" origin="melee" />
+	</augment>
+
+	<!-- NEW: Advanced Augments with PIERCING, LIFESTEAL, etc -->
+	<augment name="Light's Embrace" description="The great cleansing power of the Light">
+		<modifier mod="piercing" value="100" factor="percent" chance="50" damage="all" origin="all" race="undead" />
+		<modifier mod="critical" value="50" factor="percent" chance="100" damage="all" origin="all" race="undead" />
+	</augment>
+
+	<augment name="Dragon Slayer" description="Devastating against fire creatures">
+		<modifier mod="piercing" value="100" factor="percent" chance="30" damage="all" origin="all" race="fire" />
+		<modifier mod="critical" value="40" factor="percent" chance="100" damage="all" origin="all" race="fire" />
+		<modifier mod="conversion" value="30" factor="percent" chance="100" damage="physical" toDamage="ice" origin="melee" race="fire" />
+	</augment>
+
+	<augment name="Vampire Blade" description="Steals life from enemies">
+		<modifier mod="lifesteal" value="30" factor="percent" chance="100" damage="physical" origin="melee" />
+		<modifier mod="critical" value="20" factor="percent" chance="100" damage="physical" origin="melee" />
+		<modifier mod="piercing" value="100" factor="percent" chance="20" damage="physical" origin="melee" />
+	</augment>
+
+	<augment name="Mage's Essence" description="Restores mana from spell damage">
+		<modifier mod="manasteal" value="20" factor="percent" chance="100" damage="all" origin="spell" />
+		<modifier mod="critical" value="25" factor="percent" chance="100" damage="all" origin="spell" />
+		<modifier mod="lifesteal" value="10" factor="percent" chance="100" damage="all" origin="spell" />
+	</augment>
+
+	<augment name="Necromancer's Power" description="Master of death and undead">
+		<modifier mod="critical" value="40" factor="percent" chance="100" damage="death" origin="all" race="undead" />
+		<modifier mod="piercing" value="100" factor="percent" chance="40" damage="death" origin="all" race="undead" />
+		<modifier mod="lifesteal" value="25" factor="percent" chance="100" damage="death" origin="all" race="undead" />
+		<modifier mod="soulsteal" value="10" factor="percent" chance="100" damage="death" origin="all" race="undead" />
+	</augment>
+
+	<augment name="Condition Immunity" description="Resists poison and fire fields">
+		<modifier mod="resist" value="80" factor="percent" chance="100" damage="earth" origin="condition" />
+		<modifier mod="resist" value="80" factor="percent" chance="100" damage="fire" origin="condition" />
+		<modifier mod="absorb" value="50" factor="percent" chance="100" damage="all" origin="condition" />
+	</augment>
+</augments>
