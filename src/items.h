@@ -8,6 +8,8 @@
 #include "enums.h"
 #include "itemloader.h"
 #include "position.h"
+#include <unordered_set>
+#include <string>
 
 enum SlotPositionBits : uint32_t
 {
@@ -275,6 +277,8 @@ struct Abilities
 	bool manaShield = false;
 	bool invisible = false;
 	bool regeneration = false;
+
+	std::unordered_set<std::string> augments;
 };
 
 class ConditionDamage;

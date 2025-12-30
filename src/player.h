@@ -1044,13 +1044,13 @@ public:
 	uint32_t totalReduceSkillLoss = 0;
 
 	// Augment system
-	bool addAugment(std::string_view augmentName);
-	bool addAugment(const std::shared_ptr<Augment>& augment);
-	bool removeAugment(std::string_view augmentName);
-	bool removeAugment(const std::shared_ptr<Augment>& augment);
-	bool isAugmented() const;
-	bool hasAugment(const std::string_view augmentName, const bool checkItems = false);
-	bool hasAugment(const std::shared_ptr<Augment>& augment, const bool checkItems = false);
+	const bool addAugment(std::string_view augmentName);
+	const bool addAugment(const std::shared_ptr<Augment>& augment);
+	const bool removeAugment(std::string_view augmentName);
+	const bool removeAugment(const std::shared_ptr<Augment>& augment);
+	const bool isAugmented() const;
+	const bool hasAugment(const std::string_view augmentName, const bool checkItems = false);
+	const bool hasAugment(const std::shared_ptr<Augment>& augment, const bool checkItems = false);
 	const std::vector<std::shared_ptr<Augment>> getPlayerAugments() const;
 
 	// Augment visual effects functions
@@ -1062,6 +1062,16 @@ public:
 	void reflectDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat, uint8_t areaEffect, uint8_t distanceEffect);
 	void deflectDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat, CombatOrigin paramOrigin, uint8_t areaEffect, uint8_t distanceEffect);
 	void ricochetDamage(CombatDamage& originalDamage, int32_t percent, int32_t flat, uint8_t areaEffect, uint8_t distanceEffect);
+	void convertDamage(const Creature* target, CombatDamage& originalDamage, std::unordered_map<uint8_t, ModifierTotals> conversionList);
+	void reformDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, std::unordered_map<uint8_t, ModifierTotals> conversionList);
+	void increaseDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat) const;
+	
+	// Augment modifier functions
+	CreatureType_t getCreatureType(const Monster* monster) const;
+	std::unordered_map<uint8_t, std::vector<std::shared_ptr<DamageModifier>>> getAttackModifiers() const;
+	std::unordered_map<uint8_t, std::vector<std::shared_ptr<DamageModifier>>> getDefenseModifiers() const;
+	std::unordered_map<uint8_t, ModifierTotals> getAttackModifierTotals(const CombatType_t damageType, const CombatOrigin originType, const CreatureType_t creatureType, const RaceType_t race, const std::string_view creatureName) const;
+	std::unordered_map<uint8_t, ModifierTotals> getDefenseModifierTotals(const CombatType_t damageType, const CombatOrigin originType, const CreatureType_t creatureType, const RaceType_t race, std::string_view creatureName) const;
 
 private:
 	std::forward_list<Condition*> getMuteConditions() const;

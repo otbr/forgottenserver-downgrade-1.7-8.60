@@ -747,6 +747,7 @@ public:
 	// serialization
 	virtual Attr_ReadValue readAttr(AttrTypes_t attr, PropStream& propStream);
 	bool unserializeAttr(PropStream& propStream);
+	bool unserializeAugments(PropStream& propStream);
 	virtual bool unserializeItemNode(OTB::Loader&, const OTB::Node&, PropStream& propStream);
 
 	virtual void serializeAttr(PropWriteStream& propWriteStream) const;
@@ -942,6 +943,23 @@ public:
 		return attributes;
 	}
 
+	// Augment system
+	const bool addAugment(std::string_view augmentName);
+	const bool addAugment(const std::shared_ptr<Augment>& augment);
+	const bool removeAugment(std::string_view name);
+	const bool removeAugment(std::shared_ptr<Augment>& augment);
+	bool isAugmented() const;
+	bool hasAugment(std::string_view name) const;
+	bool hasAugment(const std::shared_ptr<Augment>& augment) const;
+	
+	std::unique_ptr<std::vector<std::shared_ptr<Augment>>>& getAugments()
+	{
+		if (!augments) {
+			augments = std::make_unique<std::vector<std::shared_ptr<Augment>>>();
+		}
+		return augments;
+	}
+
 	void incrementReferenceCounter() { ++referenceCounter; }
 	void decrementReferenceCounter()
 	{
@@ -967,6 +985,7 @@ private:
 	std::string getWeightDescription(uint32_t weight) const;
 
 	std::unique_ptr<ItemAttributes> attributes;
+	std::unique_ptr<std::vector<std::shared_ptr<Augment>>> augments;
 
 	uint32_t referenceCounter = 0;
 

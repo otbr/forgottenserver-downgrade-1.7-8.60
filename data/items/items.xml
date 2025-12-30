@@ -3374,7 +3374,7 @@
 		<attribute key="extradef" value="3" />
 		<attribute key="augment" value="Elemental Master" />
 	</item>
-	<item id="2401" article="a" name="staff" augment="Light's Embrace">
+	<item id="2401" article="a" name="staff">
 		<attribute key="weight" value="3800" />
 		<attribute key="defense" value="25" />
 		<attribute key="attack" value="10" />

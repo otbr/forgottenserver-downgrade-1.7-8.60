@@ -369,6 +369,7 @@ protected:
 	void registerItemType();
 	void registerCombat();
 	void registerCondition();
+	void registerAugment();
 	void registerOutfit();
 	void registerMonsterType();
 	void registerLoot();

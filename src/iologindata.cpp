@@ -9,11 +9,15 @@
 #include "game.h"
 #include "player.h"
 #include "vocation.h"
+#include "augment.h"
 #include "logger.h"
 #include <fmt/format.h>
 
 extern Game g_game;
 extern Vocations g_vocations;
+
+const size_t MAX_AUGMENT_DATA_SIZE = 1024 * 64; // 64 KB is the limit for BLOB
+const uint32_t MAX_AUGMENT_COUNT = 100; // Augments should not break size limit if we limit how many can go on a single player or item
 
 Account IOLoginData::loadAccount(uint32_t accno)
 {
@@ -196,6 +200,61 @@ uint32_t IOLoginData::getAccountIdByPlayerId(uint32_t playerId)
 		return 0;
 	}
 	return result->getNumber<uint32_t>("account_id");
+}
+
+void IOLoginData::loadPlayerAugments(std::vector<std::shared_ptr<Augment>>& augmentList, const DBResult_ptr& result) {
+	try {
+		if (!result) {
+			std::cout << "ERROR: Null result in loadPlayerAugments" << std::endl;
+			return;
+		}
+
+		uint32_t playerID = result->getNumber<uint32_t>("player_id");
+		auto augmentData = result->getString("augments");
+
+		if (augmentData.empty()) {
+			return;
+		}
+
+		PropStream augmentStream;
+		augmentStream.init(augmentData.data(), augmentData.size());
+
+		uint32_t augmentCount = 0;
+
+		if (!augmentStream.read<uint32_t>(augmentCount)) {
+			return;
+		}
+
+		// Additional validation on augmentCount
+		if (augmentCount > MAX_AUGMENT_COUNT) {
+			std::cout << "ERROR: Augment count too high for player " << playerID << ": " << augmentCount << std::endl;
+			return;
+		}
+
+		augmentList.reserve(augmentCount);
+
+		for (uint32_t i = 0; i < augmentCount; ++i) {
+			auto augment = std::make_shared<Augment>();
+
+			try {
+				if (!augment->unserialize(augmentStream)) {
+					std::cout << "WARNING: Failed to unserialize augment " << i
+						<< " for player " << playerID << std::endl;
+					return;
+				}
+				augmentList.emplace_back(augment);
+			}
+			catch (const std::exception& e) {
+				std::cout << "ERROR: Exception while unserializing augment " << i
+					<< " for player " << playerID << ": " << e.what() << std::endl;
+				return;
+			}
+		}
+	}
+	catch (const std::exception& e) {
+		std::cout << "ERROR: Exception in loadPlayerAugments: " << e.what() << std::endl;
+		augmentList.clear();
+	}
 }
 
 AccountType_t IOLoginData::getAccountType(uint32_t accountId)
@@ -523,7 +582,7 @@ bool IOLoginData::loadPlayer(Player* player, DBResult_ptr result)
 	ItemMap itemMap;
 
 	if ((result = db.storeQuery(fmt::format(
-	         "SELECT `pid`, `sid`, `itemtype`, `count`, `attributes` FROM `player_items` WHERE `player_id` = {:d} ORDER BY `sid` DESC",
+	         "SELECT `pid`, `sid`, `itemtype`, `count`, `attributes`, `augments`, `skills` FROM `player_items` WHERE `player_id` = {:d} ORDER BY `sid` DESC",
 	         player->getGUID())))) {
 		loadItems(itemMap, result);
 
@@ -552,7 +611,7 @@ bool IOLoginData::loadPlayer(Player* player, DBResult_ptr result)
 	itemMap.clear();
 
 	if ((result = db.storeQuery(fmt::format(
-	         "SELECT `pid`, `sid`, `itemtype`, `count`, `attributes` FROM `player_depotlockeritems` WHERE `player_id` = {:d} ORDER BY `sid` DESC",
+	         "SELECT `pid`, `sid`, `itemtype`, `count`, `attributes`, `augments`, `skills` FROM `player_depotlockeritems` WHERE `player_id` = {:d} ORDER BY `sid` DESC",
 	         player->getGUID())))) {
 		loadItems(itemMap, result);
 
@@ -584,7 +643,7 @@ bool IOLoginData::loadPlayer(Player* player, DBResult_ptr result)
 	itemMap.clear();
 
 	if ((result = db.storeQuery(fmt::format(
-	         "SELECT `pid`, `sid`, `itemtype`, `count`, `attributes` FROM `player_depotitems` WHERE `player_id` = {:d} ORDER BY `sid` DESC",
+	         "SELECT `pid`, `sid`, `itemtype`, `count`, `attributes`, `augments`, `skills` FROM `player_depotitems` WHERE `player_id` = {:d} ORDER BY `sid` DESC",
 	         player->getGUID())))) {
 		loadItems(itemMap, result);
 
@@ -691,6 +750,25 @@ bool IOLoginData::loadPlayer(Player* player, DBResult_ptr result)
 		} while (result->next());
 	}
 
+	// load augments
+	if ((result = db.storeQuery(fmt::format("SELECT `player_id`, `augments` FROM `player_augments` WHERE `player_id` = {:d}", player->getGUID())))) {
+		try {
+			std::vector<std::shared_ptr<Augment>> augments;
+			IOLoginData::loadPlayerAugments(augments, result);
+
+			if (!augments.empty()) {
+				for (auto& augment : augments) {
+					if (augment) {
+						player->addAugment(augment);
+					}
+				}
+			}
+		}
+		catch (const std::exception& e) {
+			std::cout << "ERROR: Failed to process loaded augments: " << e.what() << std::endl;
+		}
+	}
+
 	player->updateBaseSpeed();
 	player->updateInventoryWeight();
 	player->updateItemsLight(true);
@@ -714,10 +792,32 @@ bool IOLoginData::saveItems(const Player* player, const ItemBlockList& itemList,
 
 		propWriteStream.clear();
 		item->serializeAttr(propWriteStream);
+		const auto attributesData = propWriteStream.getStream();
 
-		if (!query_insert.addRow(fmt::format("{:d}, {:d}, {:d}, {:d}, {:d}, {:s}", player->getGUID(), pid, runningId,
+		// Serialize augments
+		auto augmentStream = PropWriteStream();
+		if (item->isAugmented()) {
+			const auto& augments = item->getAugments();
+			augmentStream.write<uint32_t>(augments->size());
+			for (const auto& augment : *augments) {
+				augment->serialize(augmentStream);
+			}
+		} else {
+			augmentStream.write<uint32_t>(0);
+		}
+		const auto augmentsData = augmentStream.getStream();
+
+		// Skills - empty for now
+		auto skillStream = PropWriteStream();
+		skillStream.write<uint32_t>(0);
+		const auto skillData = skillStream.getStream();
+
+		if (!query_insert.addRow(fmt::format("{:d}, {:d}, {:d}, {:d}, {:d}, {:s}, {:s}, {:s}", 
+		                                     player->getGUID(), pid, runningId,
 		                                     item->getID(), item->getSubType(),
-		                                     db.escapeString(propWriteStream.getStream())))) {
+		                                     db.escapeString(attributesData),
+		                                     db.escapeString(augmentsData),
+		                                     db.escapeString(skillData)))) {
 			return false;
 		}
 
@@ -741,13 +841,69 @@ bool IOLoginData::saveItems(const Player* player, const ItemBlockList& itemList,
 
 			propWriteStream.clear();
 			item->serializeAttr(propWriteStream);
+			const auto attributesData = propWriteStream.getStream();
 
-			if (!query_insert.addRow(fmt::format("{:d}, {:d}, {:d}, {:d}, {:d}, {:s}", player->getGUID(), parentId,
+			// Serialize augments
+			auto augmentStream = PropWriteStream();
+			if (item->isAugmented()) {
+				const auto& augments = item->getAugments();
+				augmentStream.write<uint32_t>(augments->size());
+				for (const auto& augment : *augments) {
+					augment->serialize(augmentStream);
+				}
+			} else {
+				augmentStream.write<uint32_t>(0);
+			}
+			const auto augmentsData = augmentStream.getStream();
+
+			// Skills - empty for now
+			auto skillStream = PropWriteStream();
+			skillStream.write<uint32_t>(0);
+			const auto skillData = skillStream.getStream();
+
+			if (!query_insert.addRow(fmt::format("{:d}, {:d}, {:d}, {:d}, {:d}, {:s}, {:s}, {:s}", 
+			                                     player->getGUID(), parentId,
 			                                     runningId, item->getID(), item->getSubType(),
-			                                     db.escapeString(propWriteStream.getStream())))) {
+			                                     db.escapeString(attributesData),
+			                                     db.escapeString(augmentsData),
+			                                     db.escapeString(skillData)))) {
 				return false;
 			}
 		}
+	}
+
+	return query_insert.execute();
+}
+
+bool IOLoginData::saveAugments(const Player* player, DBInsert& query_insert, PropWriteStream& augmentStream) {
+	const Database& db = Database::getInstance();
+	auto& augments = player->getPlayerAugments();
+	const uint32_t augmentCount = augments.size();
+	augmentStream.clear();
+	augmentStream.write<uint32_t>(augmentCount);
+
+	// Cap the max augments at a reasonable limit
+	if (augmentCount > MAX_AUGMENT_COUNT) {
+		// to-do : handle this better, and let player know in case this happens, what is happening.
+		std::cout << "ERROR: Too many augments to save (" << augmentCount << ") for player " << player->getGUID() << std::endl;
+		return false;
+	}
+
+	for (auto& augment : augments) {
+		augment->serialize(augmentStream);
+	}
+
+	auto augmentsData = augmentStream.getStream();
+
+	// Blobs can only hold 64 kb's
+	if (augmentsData.size() > MAX_AUGMENT_DATA_SIZE) {
+		// to-do : handle this better, and let player know in case this happens, what is happening. 
+		std::cout << "ERROR: Augment data size exceeds the limit during save for player " << player->getGUID() << std::endl;
+		return false;
+	}
+
+	if (!query_insert.addRow(fmt::format("{:d}, {:s}", player->getGUID(), db.escapeString(augmentsData)))) {
+		return false;
 	}
 
 	return query_insert.execute();
@@ -772,16 +928,38 @@ bool IOLoginData::addRewardItems(uint32_t playerId, const ItemBlockList& itemLis
         Item* item = it.second;
         propWriteStream.clear();
         item->serializeAttr(propWriteStream);
+        const auto attributesData = propWriteStream.getStream();
 
-        if (!query_insert.addRow(fmt::format("{:d}, {:d}, {:d}, {:d}, {:d}, {:s}", 
-            playerId, parentPid, runningId, item->getID(), item->getSubType(), db.escapeString(propWriteStream.getStream())))) {
+        // Serialize augments
+        auto augmentStream = PropWriteStream();
+        if (item->isAugmented()) {
+            const auto& augments = item->getAugments();
+            augmentStream.write<uint32_t>(augments->size());
+            for (const auto& augment : *augments) {
+                augment->serialize(augmentStream);
+            }
+        } else {
+            augmentStream.write<uint32_t>(0);
+        }
+        const auto augmentsData = augmentStream.getStream();
+
+        // Skills - empty for now
+        auto skillStream = PropWriteStream();
+        skillStream.write<uint32_t>(0);
+        const auto skillData = skillStream.getStream();
+
+        if (!query_insert.addRow(fmt::format("{:d}, {:d}, {:d}, {:d}, {:d}, {:s}, {:s}, {:s}", 
+            playerId, parentPid, runningId, item->getID(), item->getSubType(), 
+            db.escapeString(attributesData),
+            db.escapeString(augmentsData),
+            db.escapeString(skillData)))) {
             return false;
         }
 
         if (Container* container = item->getContainer()) {
             queue.emplace_back(container, runningId);
         }
-        ++runningId; // Always increment SID upwards
+        ++runningId;
     }
     while (!queue.empty()) {
         const ContainerBlock& cb = queue.front();
@@ -791,16 +969,38 @@ bool IOLoginData::addRewardItems(uint32_t playerId, const ItemBlockList& itemLis
         for (Item* item : container->getItemList()) {
             propWriteStream.clear();
             item->serializeAttr(propWriteStream);
+            const auto attributesData = propWriteStream.getStream();
 
-            if (!query_insert.addRow(fmt::format("{:d}, {:d}, {:d}, {:d}, {:d}, {:s}", 
-                playerId, parentId, runningId, item->getID(), item->getSubType(), db.escapeString(propWriteStream.getStream())))) {
+            // Serialize augments
+            auto augmentStream = PropWriteStream();
+            if (item->isAugmented()) {
+                const auto& augments = item->getAugments();
+                augmentStream.write<uint32_t>(augments->size());
+                for (const auto& augment : *augments) {
+                    augment->serialize(augmentStream);
+                }
+            } else {
+                augmentStream.write<uint32_t>(0);
+            }
+            const auto augmentsData = augmentStream.getStream();
+
+            // Skills - empty for now
+            auto skillStream = PropWriteStream();
+            skillStream.write<uint32_t>(0);
+            const auto skillData = skillStream.getStream();
+
+            if (!query_insert.addRow(fmt::format("{:d}, {:d}, {:d}, {:d}, {:d}, {:s}, {:s}, {:s}", 
+                playerId, parentId, runningId, item->getID(), item->getSubType(), 
+                db.escapeString(attributesData),
+                db.escapeString(augmentsData),
+                db.escapeString(skillData)))) {
                 return false;
             }
             Container* subContainer = item->getContainer();
             if (subContainer) {
                 queue.emplace_back(subContainer, runningId);
             }
-            ++runningId; // Always increment SID upwards
+            ++runningId;
         }
     }
     return query_insert.execute();
@@ -952,7 +1152,7 @@ bool IOLoginData::savePlayer(Player* player)
 	}
 
 	DBInsert itemsQuery(
-	    "INSERT INTO `player_items` (`player_id`, `pid`, `sid`, `itemtype`, `count`, `attributes`) VALUES ");
+	    "INSERT INTO `player_items` (`player_id`, `pid`, `sid`, `itemtype`, `count`, `attributes`, `augments`, `skills`) VALUES ");
 
 	ItemBlockList itemList;
 	for (int32_t slotId = CONST_SLOT_FIRST; slotId <= CONST_SLOT_LAST; ++slotId) {
@@ -983,7 +1183,7 @@ bool IOLoginData::savePlayer(Player* player)
 		}
 
 		DBInsert lockerQuery(
-		    "INSERT INTO `player_depotlockeritems` (`player_id`, `pid`, `sid`, `itemtype`, `count`, `attributes`) VALUES ");
+		    "INSERT INTO `player_depotlockeritems` (`player_id`, `pid`, `sid`, `itemtype`, `count`, `attributes`, `augments`, `skills`) VALUES ");
 		itemList.clear();
 
 		for (const auto& it : player->depotLockerMap) {
@@ -1006,7 +1206,7 @@ bool IOLoginData::savePlayer(Player* player)
 			}
 
 			DBInsert depotQuery(
-			    "INSERT INTO `player_depotitems` (`player_id`, `pid`, `sid`, `itemtype`, `count`, `attributes`) VALUES ");
+			    "INSERT INTO `player_depotitems` (`player_id`, `pid`, `sid`, `itemtype`, `count`, `attributes`, `augments`, `skills`) VALUES ");
 			itemList.clear();
 
 			for (const auto& it : player->depotChests) {
@@ -1044,6 +1244,18 @@ bool IOLoginData::savePlayer(Player* player)
 	}
 
 	if (!saveItems(player, itemList, rewardQuery, propWriteStream)) {
+		return false;
+	}
+
+	// save augments
+	if (!db.executeQuery(fmt::format("DELETE FROM `player_augments` WHERE `player_id` = {:d}", player->getGUID()))) {
+		return false;
+	}
+
+	DBInsert augmentQuery("INSERT INTO `player_augments` (`player_id`, `augments`) VALUES ");
+	PropWriteStream augmentStream;
+
+	if (!saveAugments(player, augmentQuery, augmentStream)) {
 		return false;
 	}
 
@@ -1174,10 +1386,18 @@ void IOLoginData::loadItems(ItemMap& itemMap, DBResult_ptr result)
 		PropStream propStream;
 		propStream.init(attr.data(), attr.size());
 
+		auto augmentData = result->getString("augments");
+		PropStream augmentStream;
+		augmentStream.init(augmentData.data(), augmentData.size());
+
 		Item* item = Item::CreateItem(type, count);
 		if (item) {
 			if (!item->unserializeAttr(propStream)) {
 				LOG_WARN("WARNING: Serialize error in IOLoginData::loadItems");
+			}
+
+			if (!item->unserializeAugments(augmentStream)) {
+				LOG_WARN("WARNING: Failed to unserialize augments in IOLoginData::loadItems");
 			}
 
 			std::pair<Item*, uint32_t> pair(item, pid);

@@ -40,6 +40,77 @@ public:
 	std::vector<std::shared_ptr<DamageModifier>> getAttackModifiers(uint8_t modType);
 	std::vector<std::shared_ptr<DamageModifier>> getDefenseModifiers(uint8_t modType);
 
+	void serialize(PropWriteStream& propWriteStream) const {
+		// Serialize m_name and m_description
+		propWriteStream.writeString(m_name);
+		propWriteStream.writeString(m_description);
+
+		// Serialize m_attack_modifiers
+		propWriteStream.write<uint32_t>(m_attack_modifiers.size());
+		for (const auto& modifier : m_attack_modifiers) {
+			modifier->serialize(propWriteStream);
+		}
+
+		// Serialize m_defense_modifiers
+		propWriteStream.write<uint32_t>(m_defense_modifiers.size());
+		for (const auto& modifier : m_defense_modifiers) {
+			modifier->serialize(propWriteStream);
+		}
+	}
+
+	bool unserialize(PropStream& propReadStream) {
+		// Deserialize m_name and m_description
+		auto [name, successName] = propReadStream.readString();
+		if (!successName) {
+			std::cout << "WARNING: Failed to deserialize augment name" << std::endl;
+			return false;
+		}
+		m_name = std::string(name);
+
+		auto [description, successDesc] = propReadStream.readString();
+		if (!successDesc) {
+			std::cout << "WARNING: Failed to deserialize augment description" << std::endl;
+			return false;
+		}
+		m_description = std::string(description);
+
+		// Deserialize m_attack_modifiers
+		uint32_t attackModifierCount;
+		if (!propReadStream.read<uint32_t>(attackModifierCount)) {
+			std::cout << "WARNING: Failed to deserialize attack modifier count" << std::endl;
+			return false;
+		}
+
+		m_attack_modifiers.clear();
+		for (uint32_t i = 0; i < attackModifierCount; ++i) {
+			auto modifier = std::make_shared<DamageModifier>();
+			if (!modifier->unserialize(propReadStream)) {
+				std::cout << "WARNING: Failed to deserialize attack modifier " << i << std::endl;
+				return false;
+			}
+			m_attack_modifiers.push_back(modifier);
+		}
+
+		// Deserialize m_defense_modifiers
+		uint32_t defenseModifierCount;
+		if (!propReadStream.read<uint32_t>(defenseModifierCount)) {
+			std::cout << "WARNING: Failed to deserialize defense modifier count" << std::endl;
+			return false;
+		}
+
+		m_defense_modifiers.clear();
+		for (uint32_t i = 0; i < defenseModifierCount; ++i) {
+			auto modifier = std::make_shared<DamageModifier>();
+			if (!modifier->unserialize(propReadStream)) {
+				std::cout << "WARNING: Failed to deserialize defense modifier " << i << std::endl;
+				return false;
+			}
+			m_defense_modifiers.push_back(modifier);
+		}
+
+		return true;
+	}
+
 private:
 	std::vector<std::shared_ptr<DamageModifier>> m_attack_modifiers;
 	std::vector<std::shared_ptr<DamageModifier>> m_defense_modifiers;

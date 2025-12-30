@@ -5389,45 +5389,49 @@ bool Player::addOfflineTrainingTries(skills_t skill, uint64_t tries)
 }
 
 // Augment System Implementation
-bool Player::addAugment(const std::shared_ptr<Augment>& augment) {
+const bool Player::addAugment(const std::shared_ptr<Augment>& augment) {
 	if (std::ranges::find(augments, augment) == augments.end()) {
 		augments.push_back(augment);
+		g_events->eventPlayerOnAugment(this, augment.get());
 		return true;
 	}
 	return false;
 }
 
-bool Player::addAugment(const std::string_view augmentName) {
+const bool Player::addAugment(const std::string_view augmentName) {
 	if (auto augment = Augments::GetAugment(augmentName)) {
 		augments.emplace_back(augment);
+		g_events->eventPlayerOnAugment(this, augment.get());
 		return true;
 	}
 	return false;
 }
 
-bool Player::removeAugment(const std::shared_ptr<Augment>& augment) {
+const bool Player::removeAugment(const std::shared_ptr<Augment>& augment) {
 	if (const auto it = std::ranges::find(augments, augment); it != augments.end()) {
+		g_events->eventPlayerOnRemoveAugment(this, augment.get());
 		augments.erase(it);
 		return true;
 	}
 	return false;
 }
 
-bool Player::removeAugment(const std::string_view augmentName) {
-	for (auto it = augments.begin(); it != augments.end(); ++it) {
-		if ((*it)->getName() == augmentName) {
-			augments.erase(it);
-			return true;
+const bool Player::removeAugment(const std::string_view augmentName) {
+	const auto originalSize = augments.size();
+	std::erase_if(augments, [&](const std::shared_ptr<Augment>& augment) {
+		if (const auto match = augment->getName() == augmentName) {
+			g_events->eventPlayerOnRemoveAugment(this, augment.get());
 		}
-	}
-	return false;
+		return augment->getName() == augmentName;
+	});
+	return augments.size() < originalSize;
 }
 
-bool Player::isAugmented() const {
+const bool Player::isAugmented() const {
 	return augments.size() > 0;
 }
 
-bool Player::hasAugment(const std::string_view augmentName, bool checkItems) {
+const bool Player::hasAugment(const std::string_view augmentName, bool checkItems) {
 	for (const auto& augment : augments) {
 		if (augment->getName() == augmentName) {
 			return true;
@@ -5437,14 +5441,21 @@ bool Player::hasAugment(const std::string_view augmentName, bool checkItems) {
 	if (checkItems) {
 		for (int32_t slot = CONST_SLOT_FIRST; slot <= CONST_SLOT_LAST; ++slot) {
 			if (const auto& item = inventory[slot]; item) {
-				// TODO: Implement item augment checking when items support augments
+				if (item->isAugmented()) {
+					const auto& itemAugments = item->getAugments();
+					for (const auto& aug : *itemAugments) {
+						if (aug->getName() == augmentName) {
+							return true;
+						}
+					}
+				}
 			}
 		}
 	}
 	return false;
 }
 
-bool Player::hasAugment(const std::shared_ptr<Augment>& augment, bool checkItems) {
+const bool Player::hasAugment(const std::shared_ptr<Augment>& augment, bool checkItems) {
 	for (const auto& aug : augments) {
 		if (aug == augment) {
 			return true;
@@ -5454,7 +5465,14 @@ bool Player::hasAugment(const std::shared_ptr<Augment>& augment, bool checkItems
 	if (checkItems) {
 		for (int32_t slot = CONST_SLOT_FIRST; slot <= CONST_SLOT_LAST; ++slot) {
 			if (const auto& item = inventory[slot]; item) {
-				// TODO: Implement item augment checking when items support augments
+				if (item->isAugmented()) {
+					const auto& itemAugments = item->getAugments();
+					for (const auto& aug : *itemAugments) {
+						if (aug == augment) {
+							return true;
+						}
+					}
+				}
 			}
 		}
 	}
@@ -5690,4 +5708,246 @@ void Player::ricochetDamage(CombatDamage& originalDamage, int32_t percent, int32
 		sendTextMessage(MESSAGE_EVENT_ADVANCE,
 			"An attack on you ricocheted " + std::to_string(ricochetDamage) + " damage.");
 	}
+}
+
+void Player::convertDamage(const Creature* target, CombatDamage& originalDamage, std::unordered_map<uint8_t, ModifierTotals> conversionList) {
+	auto iter = conversionList.begin();
+
+	while (originalDamage.primary.value < 0 && iter != conversionList.end()) {
+
+		const CombatType_t combatType = indexToCombatType(iter->first);
+		const ModifierTotals& totals = iter->second;
+
+		int32_t convertedDamage = 0;
+		const int32_t percent = static_cast<int32_t>(totals.percentTotal);
+		const int32_t flat = static_cast<int32_t>(totals.flatTotal);
+		const int32_t originalDamageValue = std::abs(originalDamage.primary.value);
+		if (percent) {
+			convertedDamage += originalDamageValue * percent / 100;
+		}
+		if (flat) {
+			convertedDamage += flat;
+		}
+
+		if (convertedDamage != 0 && target) {
+			convertedDamage = std::min<int32_t>(convertedDamage, originalDamageValue);
+			originalDamage.primary.value += convertedDamage;
+			
+			auto converted = CombatDamage{};
+			converted.primary.type = combatType;
+			converted.primary.value = (0 - convertedDamage);
+			converted.origin = ORIGIN_AUGMENT;
+			converted.augmented = true;
+
+			auto params = CombatParams{};
+			params.combatType = combatType;
+			params.origin = ORIGIN_AUGMENT;
+			
+			auto message = "You converted " + std::to_string(convertedDamage) + " " + getCombatName(originalDamage.primary.type) + " damage to " + getCombatName(combatType) + " during an attack on " + target->getName() + ".";
+			sendTextMessage(MESSAGE_DAMAGE_DEALT, message);
+			Combat::doTargetCombat(this, const_cast<Creature*>(target), converted, params);
+		}
+		++iter;
+	}
+}
+
+void Player::reformDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, std::unordered_map<uint8_t, ModifierTotals> conversionList) {
+	auto iter = conversionList.begin();
+
+	while (originalDamage.primary.value < 0 && iter != conversionList.end()) {
+
+		CombatType_t combatType = indexToCombatType(iter->first);
+		const ModifierTotals& totals = iter->second;
+
+		int32_t reformedDamage = 0;
+		int32_t percent = static_cast<int32_t>(totals.percentTotal);
+		int32_t flat = static_cast<int32_t>(totals.flatTotal);
+		const int32_t originalDamageValue = std::abs(originalDamage.primary.value);
+		if (percent) {
+			reformedDamage += originalDamageValue * percent / 100;
+		}
+		if (flat) {
+			reformedDamage += flat;
+		}
+
+		if (reformedDamage) {
+			reformedDamage = std::min<int32_t>(reformedDamage, originalDamageValue);
+			originalDamage.primary.value += reformedDamage;
+
+			auto reform = CombatDamage{};
+			reform.primary.type = combatType;
+			reform.primary.value = (0 - reformedDamage);
+			reform.origin = ORIGIN_AUGMENT;
+			reform.augmented = true;
+
+			auto params = CombatParams{};
+			params.combatType = combatType;
+			params.origin = ORIGIN_AUGMENT;
+			
+			auto message = (attacker.has_value()) ?
+				"You reformed " + std::to_string(reformedDamage) + " " + getCombatName(originalDamage.primary.type) + " damage from " + getCombatName(combatType) + " during an attack on you by " + attacker.value()->getName() + "." :
+				"You reformed " + std::to_string(reformedDamage) + " " + getCombatName(originalDamage.primary.type) + " damage from " + getCombatName(combatType) + ".";
+			
+			sendTextMessage(MESSAGE_DAMAGE_DEALT, message);
+			auto target = (attacker.has_value()) ? attacker.value() : nullptr;
+			Combat::doTargetCombat(target, this, reform, params);
+		}
+		++iter;
+	}
+}
+
+void Player::increaseDamage(std::optional<Creature*> attacker, CombatDamage& originalDamage, int32_t percent, int32_t flat) const {
+	int32_t increasedDamage = 0;
+	const int32_t originalDamageValue = std::abs(originalDamage.primary.value);
+	if (percent) {
+		increasedDamage += originalDamageValue * percent / 100;
+	}
+
+	if (flat) {
+		increasedDamage += flat;
+	}
+
+	if (increasedDamage != 0) {
+		increasedDamage = std::min<int32_t>(increasedDamage, originalDamageValue);
+		originalDamage.primary.value -= increasedDamage;
+
+		auto message = (attacker.has_value()) ?
+			"You took an additional " + std::to_string(increasedDamage) + " damage from " + attacker.value()->getName() + "'s attack." :
+			"You took an additional " + std::to_string(increasedDamage) + " damage.";
+
+		sendTextMessage(MESSAGE_EVENT_DEFAULT, message);
+	}
+}
+
+CreatureType_t Player::getCreatureType(const Monster* monster) const {
+	auto creatureType = CREATURETYPE_MONSTER;
+	if (monster->getFriendList().size() > 0) {
+		for (auto monsterFriend : monster->getFriendList()) {
+			if (const auto& ally = monsterFriend->getPlayer()) {
+				if (ally->getGuild() && this->getGuild() && ally->getGuild() == this->getGuild()) {
+					creatureType = CREATURETYPE_SUMMON_GUILD;
+				}
+
+				if (ally->getParty() && this->getParty() && ally->getParty() == this->getParty()) {
+					creatureType = CREATURETYPE_SUMMON_PARTY;
+				}
+			}
+		}
+	}
+
+	if (monster->getMaster() && monster->getMaster()->getID() == this->getID()) {
+		creatureType = CREATURETYPE_SUMMON_OWN;
+	}
+	return creatureType;
+}
+
+static ModifierTotals getValidatedTotals(const std::vector<std::shared_ptr<DamageModifier>>& modifierList, const CombatType_t damageType, const CombatOrigin originType, const CreatureType_t creatureType, const RaceType_t race, const std::string_view creatureName) {
+	uint16_t percent = 0;
+	uint16_t flat = 0;
+	
+	for (auto& modifier : modifierList) {
+		if (modifier->appliesToDamage(damageType) && modifier->appliesToOrigin(originType) && modifier->appliesToTarget(creatureType, race, creatureName)) {
+			if (modifier->isFlatValue() && modifier->getChance() == 0 || modifier->isFlatValue() && modifier->getChance() == 100) {
+				flat += modifier->getValue();
+				continue;
+			} else if (modifier->isFlatValue()) {
+				if (modifier->getChance() >= uniform_random(1, 100)) {
+					flat += modifier->getValue();
+					continue;
+				}
+			}
+
+			if (modifier->isPercent() && modifier->getChance() == 0 || modifier->isPercent() && modifier->getChance() == 100) {
+				percent += modifier->getValue();
+				continue;
+			} else if (modifier->isPercent()) {
+				if (modifier->getChance() >= uniform_random(1, 100)) {
+					percent += modifier->getValue();
+					continue;
+				}
+			}
+		}
+	}
+	percent = std::clamp<uint16_t>(percent, 0, 100);
+	return ModifierTotals(flat, percent);
+}
+
+std::unordered_map<uint8_t, std::vector<std::shared_ptr<DamageModifier>>> Player::getAttackModifiers() const {
+	std::unordered_map<uint8_t, std::vector<std::shared_ptr<DamageModifier>>> modifierMap;
+
+	if (!augments.empty()) {
+		for (const auto& aug : augments) {
+			for (const auto& mod : aug->getAttackModifiers()) {
+				modifierMap[mod->getType()].emplace_back(mod);
+			}
+		}
+	}
+
+	for (uint8_t slot = CONST_SLOT_FIRST; slot <= CONST_SLOT_RING; ++slot) {
+		if (const auto& item = inventory[slot]; item) {
+			if (item->isAugmented()) {
+				const auto& augs = item->getAugments();
+				for (const auto& aug : *augs) {
+					// Simplified - just add all modifiers without slot protection checks
+					for (const auto& mod : aug->getAttackModifiers()) {
+						modifierMap[mod->getType()].emplace_back(mod);
+					}
+				}
+			}
+		}
+	}
+
+	return modifierMap;
+}
+
+std::unordered_map<uint8_t, std::vector<std::shared_ptr<DamageModifier>>> Player::getDefenseModifiers() const {
+	std::unordered_map<uint8_t, std::vector<std::shared_ptr<DamageModifier>>> modifierMap;
+
+	if (!augments.empty()) {
+		for (const auto& aug : augments) {
+			for (const auto& mod : aug->getDefenseModifiers()) {
+				modifierMap[mod->getType()].emplace_back(mod);
+			}
+		}
+	}
+
+	for (uint8_t slot = CONST_SLOT_FIRST; slot <= CONST_SLOT_RING; ++slot) {
+		if (const auto& item = inventory[slot]; item) {
+			if (item->isAugmented()) {
+				const auto& augs = item->getAugments();
+				for (const auto& aug : *augs) {
+					// Simplified - just add all modifiers without slot protection checks
+					for (const auto& mod : aug->getDefenseModifiers()) {
+						modifierMap[mod->getType()].emplace_back(mod);
+					}
+				}
+			}
+		}
+	}
+	
+	return modifierMap;
+}
+
+std::unordered_map<uint8_t, ModifierTotals> Player::getAttackModifierTotals(const CombatType_t damageType, const CombatOrigin originType, const CreatureType_t creatureType, const RaceType_t race, const std::string_view creatureName) const {
+	std::unordered_map<uint8_t, ModifierTotals> modMap;
+	modMap.reserve(ATTACK_MODIFIER_LAST);
+	
+	auto attackMods = getAttackModifiers();
+	for (uint8_t i = ATTACK_MODIFIER_NONE; i <= ATTACK_MODIFIER_LAST; ++i) {
+		auto modTotals = getValidatedTotals(attackMods[i], damageType, originType, creatureType, race, creatureName);
+		modMap.try_emplace(i, modTotals);
+	}
+	return modMap;
+}
+
+std::unordered_map<uint8_t, ModifierTotals> Player::getDefenseModifierTotals(const CombatType_t damageType, const CombatOrigin originType, const CreatureType_t creatureType, const RaceType_t race, std::string_view creatureName) const {
+	std::unordered_map<uint8_t, ModifierTotals> modMap;
+	modMap.reserve(DEFENSE_MODIFIER_LAST);
+	
+	auto defenseMods = getDefenseModifiers();
+	for (uint8_t i = DEFENSE_MODIFIER_FIRST; i <= DEFENSE_MODIFIER_LAST; ++i) {
+		auto modTotals = getValidatedTotals(defenseMods[i], damageType, originType, creatureType, race, creatureName);
+		modMap.try_emplace(i, modTotals);
+	}
+	return modMap;
 }

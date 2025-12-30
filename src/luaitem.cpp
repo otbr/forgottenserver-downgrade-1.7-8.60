@@ -927,7 +927,4 @@ void LuaScriptInterface::registerItem()
 
 	registerMethod("Item", "setBoostPercent", luaItemSetBoostPercent);
 	registerMethod("Item", "getBoostPercent", luaItemGetBoostPercent);
-
-	registerMethod("Item", "setAugment", luaItemSetAugment);
-	registerMethod("Item", "getAugment", luaItemGetAugment);
 }

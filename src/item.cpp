@@ -752,6 +752,33 @@ bool Item::unserializeAttr(PropStream& propStream)
 	return true;
 }
 
+bool Item::unserializeAugments(PropStream& propStream)
+{
+	uint32_t augmentCount = 0;
+	if (!propStream.read<uint32_t>(augmentCount)) {
+		return false;
+	}
+	
+	if (!isAugmented() && augmentCount > 0) {
+		augments = std::make_unique<std::vector<std::shared_ptr<Augment>>>();
+		augments->reserve(augmentCount);
+	}
+	
+	for (uint32_t i = 0; i < augmentCount; ++i) {
+		auto augment = std::make_shared<Augment>();
+		bool result = augment->unserialize(propStream);
+		if (!result) {
+			return result;
+		}
+
+		if (!hasAugment(augment)) {
+			addAugment(augment);
+		}
+	}
+
+	return true;
+}
+
 bool Item::unserializeItemNode(OTB::Loader&, const OTB::Node&, PropStream& propStream)
 {
 	return unserializeAttr(propStream);
@@ -1284,4 +1311,116 @@ void Item::setAugment(Augment* aug)
 			g_events->eventPlayerOnAugment(player, aug);
 		}
 	}
+}
+
+// Augment system - multiple augments
+const bool Item::addAugment(const std::shared_ptr<Augment>& augment)
+{
+	if (!isAugmented()) {
+		augments = std::make_unique<std::vector<std::shared_ptr<Augment>>>();
+		augments->push_back(augment);
+		g_events->eventItemOnAugment(this, augment.get());
+		return true;
+	}
+
+	for (const auto& aug : *augments) {
+		bool same_pointer = (aug.get() == augment.get());
+		bool same_name = (*aug == *augment);
+		if (same_pointer || same_name) {
+			return false;
+		}
+	}
+
+	augments->push_back(augment);
+	g_events->eventItemOnAugment(this, augment.get());
+	return true;
+}
+
+const bool Item::addAugment(std::string_view augmentName)
+{
+	if (!isAugmented()) {
+		augments = std::make_unique<std::vector<std::shared_ptr<Augment>>>();
+	}
+	
+	if (auto augment = Augments::GetAugment(augmentName)) {
+		if (std::ranges::find(*augments, augment) != augments->end()) {
+			return false;
+		}
+		augments->emplace_back(augment);
+		g_events->eventItemOnAugment(this, augment.get());
+		return true;
+	}
+	return false;
+}
+
+const bool Item::removeAugment(std::shared_ptr<Augment>& augment)
+{
+	if (!isAugmented()) {
+		return false;
+	}
+
+	const auto removedCount = std::erase(*augments, augment);
+	const bool removed = removedCount > 0;
+	if (removed) {
+		g_events->eventItemOnRemoveAugment(this, augment.get());
+	}
+	return removed;
+}
+
+const bool Item::removeAugment(std::string_view name)
+{
+	if (!isAugmented()) {
+		return false;
+	}
+
+	auto originalSize = augments->size();
+	
+	std::erase_if(*augments, [this, &name](const std::shared_ptr<Augment>& augment) {
+		const auto match = augment->getName() == name;
+		if (match) {
+			g_events->eventItemOnRemoveAugment(this, augment.get());
+		}
+		return match;
+	});
+	
+	return augments->size() < originalSize;
+}
+
+bool Item::isAugmented() const
+{
+	if (const auto& augs = augments.get(); augs && augs->size() > 0) {
+		return true;
+	}
+	return false;
+}
+
+bool Item::hasAugment(std::string_view name) const
+{
+	if (!isAugmented()) {
+		return false;
+	}
+
+	for (const auto& aug : *augments) {
+		if (aug->getName() == name) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool Item::hasAugment(const std::shared_ptr<Augment>& augment) const
+{
+	if (!isAugmented()) {
+		return false;
+	}
+	
+	for (const auto& aug : *augments) {
+		bool same_pointer = (aug.get() == augment.get());
+		bool same_name = (*aug == *augment);
+		if (same_pointer || same_name) {
+			return true;
+		}
+	}
+	
+	return false;
 }

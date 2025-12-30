@@ -223,7 +223,7 @@ end
 testAll:separator(" ")
 testAll:register()
 
--- Spawn monster helper
+-- Spawn monster helper with custom HP
 local spawnMon = TalkAction("/spawnmon")
 function spawnMon.onSay(player, words, param)
 	local monsterName = param ~= "" and param or "rat"
@@ -233,7 +233,24 @@ function spawnMon.onSay(player, words, param)
 	
 	local monster = Game.createMonster(monsterName, position, false, true)
 	if monster then
-		player:sendTextMessage(MESSAGE_EVENT_ADVANCE, "Spawned " .. monsterName)
+		-- Set HP to 9999999 like test monsters
+		monster:setMaxHealth(9999999)
+		monster:addHealth(9999999)
+		
+		player:sendTextMessage(MESSAGE_EVENT_ADVANCE, "Spawned " .. monsterName .. " (9999999 HP)")
+		
+		-- Show race info
+		local race = monster:getRace()
+		local raceNames = {
+			[0] = "none",
+			[1] = "venom", 
+			[2] = "blood",
+			[3] = "undead",
+			[4] = "fire",
+			[5] = "energy",
+			[6] = "ink"
+		}
+		player:sendTextMessage(MESSAGE_EVENT_ADVANCE, "Race: " .. (raceNames[race] or "unknown") .. " (" .. race .. ")")
 	else
 		player:sendTextMessage(MESSAGE_EVENT_ADVANCE, "Failed to spawn " .. monsterName)
 	end

@@ -682,6 +682,7 @@ struct CombatDamage
 	bool critical = false;
 	bool leeched = false;
 	bool piercing = false;
+	bool augmented = false;
 };
 
 using ShopInfoList = std::list<ShopInfo>;

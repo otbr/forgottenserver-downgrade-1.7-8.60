@@ -99,6 +99,7 @@
 	<augment name="Light's Embrace" description="The great cleansing power of the Light">
 		<modifier mod="piercing" value="100" factor="percent" chance="50" damage="all" origin="all" race="undead" />
 		<modifier mod="critical" value="50" factor="percent" chance="100" damage="all" origin="all" race="undead" />
+		<modifier mod="conversion" value="100" factor="percent" chance="100" damage="physical" toDamage="holy" origin="all" race="undead" />
 	</augment>
 
 	<augment name="Dragon Slayer" description="Devastating against fire creatures">

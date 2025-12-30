@@ -1910,6 +1910,14 @@ void LuaScriptInterface::registerFunctions()
 	registerEnum(ORIGIN_MELEE);
 	registerEnum(ORIGIN_RANGED);
 	registerEnum(ORIGIN_WAND);
+	registerEnum(ORIGIN_REFLECT);
+	registerEnum(ORIGIN_ABSORB);
+	registerEnum(ORIGIN_RESTORE);
+	registerEnum(ORIGIN_DEFLECT);
+	registerEnum(ORIGIN_RICOCHET);
+	registerEnum(ORIGIN_PIERCING);
+	registerEnum(ORIGIN_AUGMENT);
+	registerEnum(ORIGIN_IMBUEMENT);
 
 	// Attack Modifiers
 	registerEnum(ATTACK_MODIFIER_FIRST);
@@ -2231,6 +2239,7 @@ void LuaScriptInterface::registerFunctions()
 	registerItemType();
 	registerCombat();
 	registerCondition();
+	registerAugment();
 	registerOutfit();
 	registerMonsterType();
 	registerLoot();

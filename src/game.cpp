@@ -30,6 +30,7 @@
 #include <fmt/format.h>
 
 extern Actions* g_actions;
+extern Augments* g_augments;
 extern Chat* g_chat;
 extern TalkActions* g_talkActions;
 extern Spells* g_spells;
@@ -1695,6 +1696,11 @@ Item* Game::transformItem(Item* item, uint16_t newId, int32_t newCount /*= -1*/)
 {
 	if (item->getID() == newId && (newCount == -1 || (newCount == item->getSubType() &&
 	                                                  newCount != 0))) { // chargeless item placed on map = infinite
+		return item;
+	}
+
+	if (item->isAugmented()) {
+		LOG_WARN("Warning! Attempted to transform augmented item: {}", item->getName());
 		return item;
 	}
 
@@ -5391,6 +5397,9 @@ bool Game::reload(ReloadTypes_t reloadType)
 	switch (reloadType) {
 		case RELOAD_TYPE_ACTIONS:
 			return g_actions->reload();
+		case RELOAD_TYPE_AUGMENTS:
+			g_augments->reload();
+			return true;
 		case RELOAD_TYPE_CHAT:
 			return g_chat->load();
 		case RELOAD_TYPE_CONFIG:
@@ -5452,6 +5461,7 @@ bool Game::reload(ReloadTypes_t reloadType)
 			g_spells->clear(true);
 			g_scripts->loadScripts("scripts", false, true);
 			g_creatureEvents->removeInvalidEvents();
+			g_augments->reload();
 			/*
 			Npcs::reload();
 			raids.reload() && raids.startup();

@@ -125,6 +125,39 @@ public:
 	void setTransformDamageType(CombatType_t damageType);
 	void setCreatureName(std::string_view creatureName);
 
+	void serialize(PropWriteStream& propWriteStream) const {
+		propWriteStream.write<uint8_t>(m_mod_stance);
+		propWriteStream.write<uint8_t>(m_mod_type);
+		propWriteStream.write<uint16_t>(m_value);
+		propWriteStream.write<uint8_t>(m_factor);
+		propWriteStream.write<uint8_t>(m_chance);
+		propWriteStream.write<CombatType_t>(m_damage_type);
+		propWriteStream.write<CombatType_t>(m_to_damage_type);
+		propWriteStream.write<CombatOrigin>(m_origin_type);
+		propWriteStream.write<CreatureType_t>(m_creature_type);
+		propWriteStream.write<RaceType_t>(m_race_type);
+		propWriteStream.writeString(m_creature_name);
+	}
+
+	bool unserialize(PropStream& propReadStream) {
+		if (!propReadStream.read<uint8_t>(m_mod_stance)) return false;
+		if (!propReadStream.read<uint8_t>(m_mod_type)) return false;
+		if (!propReadStream.read<uint16_t>(m_value)) return false;
+		if (!propReadStream.read<uint8_t>(m_factor)) return false;
+		if (!propReadStream.read<uint8_t>(m_chance)) return false;
+		if (!propReadStream.read<CombatType_t>(m_damage_type)) return false;
+		if (!propReadStream.read<CombatType_t>(m_to_damage_type)) return false;
+		if (!propReadStream.read<CombatOrigin>(m_origin_type)) return false;
+		if (!propReadStream.read<CreatureType_t>(m_creature_type)) return false;
+		if (!propReadStream.read<RaceType_t>(m_race_type)) return false;
+
+		auto [creatureName, success] = propReadStream.readString();
+		if (!success) return false;
+		m_creature_name = std::string(creatureName);
+
+		return true;
+	}
+
 private:
 	uint8_t m_mod_stance = 0;
 	uint8_t m_mod_type = 0;

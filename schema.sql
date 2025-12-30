@@ -330,6 +330,8 @@ CREATE TABLE IF NOT EXISTS `player_depotlockeritems` (
   `itemtype` smallint NOT NULL,
   `count` smallint NOT NULL DEFAULT '0',
   `attributes` blob NOT NULL,
+  `augments` blob NOT NULL,
+  `skills` blob NOT NULL,
   UNIQUE KEY `player_id_2` (`player_id`, `sid`),
   FOREIGN KEY (`player_id`) REFERENCES `players`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8;
@@ -341,7 +343,16 @@ CREATE TABLE IF NOT EXISTS `player_depotitems` (
   `itemtype` smallint unsigned NOT NULL,
   `count` smallint NOT NULL DEFAULT '0',
   `attributes` blob NOT NULL,
+  `augments` blob NOT NULL,
+  `skills` blob NOT NULL,
   UNIQUE KEY `player_id_2` (`player_id`, `sid`),
+  FOREIGN KEY (`player_id`) REFERENCES `players`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8;
+
+CREATE TABLE IF NOT EXISTS `player_augments` (
+  `player_id` int NOT NULL,
+  `augments` blob NOT NULL,
+  KEY `player_id` (`player_id`),
   FOREIGN KEY (`player_id`) REFERENCES `players`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8;
 
@@ -352,6 +363,8 @@ CREATE TABLE IF NOT EXISTS `player_items` (
   `itemtype` smallint unsigned NOT NULL,
   `count` smallint NOT NULL DEFAULT '0',
   `attributes` blob NOT NULL,
+  `augments` blob NOT NULL,
+  `skills` blob NOT NULL,
   FOREIGN KEY (`player_id`) REFERENCES `players`(`id`) ON DELETE CASCADE,
   KEY `sid` (`sid`)
 ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8;
@@ -361,6 +374,19 @@ CREATE TABLE IF NOT EXISTS `player_mounts` (
   `mount_id` smallint unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`player_id`, `mount_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+
+CREATE TABLE IF NOT EXISTS `player_rewarditems` (
+  `player_id` int NOT NULL,
+  `sid` int NOT NULL COMMENT 'range 0-100 will be reserved for adding items to player who are offline and all > 100 is for items saved from reward chest',
+  `pid` int NOT NULL DEFAULT '0',
+  `itemtype` smallint unsigned NOT NULL,
+  `count` smallint NOT NULL DEFAULT '0',
+  `attributes` blob NOT NULL,
+  `augments` blob NOT NULL,
+  `skills` blob NOT NULL,
+  UNIQUE KEY `player_id_2` (`player_id`, `sid`),
+  FOREIGN KEY (`player_id`) REFERENCES `players`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8;
 
 CREATE TABLE IF NOT EXISTS `player_spells` (
   `player_id` int NOT NULL,
